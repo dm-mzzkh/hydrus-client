@@ -1,6 +1,7 @@
-import { createSignal, Show } from "solid-js";
+import { createEffect, createResource, createSignal, For, on, Show } from "solid-js";
 import { DEFAULTS, loadSettings, saveSettings, type Settings } from "./config";
-import { HydrusApi } from "./api/hydrus";
+import { HydrusApi, type ServiceInfo } from "./api/hydrus";
+import { SearchBar } from "./components/SearchBar";
 import { VirtualGrid } from "./components/VirtualGrid";
 import { FileViewer } from "./components/FileViewer";
 
@@ -14,24 +15,73 @@ export function App() {
   );
 }
 
+/** Подмножество file_sort_type из доки Client API. */
+const SORTS: [number, string][] = [
+  [2, "Import time"],
+  [0, "File size"],
+  [4, "Random"],
+  [9, "Num tags"],
+  [1, "Duration"],
+  [5, "Width"],
+  [6, "Height"],
+  [8, "Num pixels"],
+  [14, "Modified time"],
+  [18, "Last viewed"],
+];
+
 function Main(props: { settings: Settings; onEditSettings: () => void }) {
   const api = new HydrusApi(props.settings);
-  const [query, setQuery] = createSignal("");
   const [fileIds, setFileIds] = createSignal<number[]>([]);
   const [selected, setSelected] = createSignal<number | null>(null);
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
+  const [lastTags, setLastTags] = createSignal<string[] | null>(null);
 
-  async function search(e: Event) {
-    e.preventDefault();
+  // сортировка и скоуп
+  const [sortType, setSortType] = createSignal(2); // import time
+  const [sortAsc, setSortAsc] = createSignal(false); // newest first
+  const [domains, setDomains] = createSignal<string[]>([]); // выбранные тег-домены; [] = all
+  const [domainsOpen, setDomainsOpen] = createSignal(false);
+
+  const [services] = createResource<Record<string, ServiceInfo>>(() =>
+    api.services().catch(() => ({})),
+  );
+  const tagServices = () =>
+    Object.values(services() ?? {}).filter((s) => s.type === 0 || s.type === 5);
+
+  // один домен → точный tag_service_key, иначе all known tags
+  const scopeKey = () => (domains().length === 1 ? domains()[0] : undefined);
+
+  function toggleDomain(key: string) {
+    setDomains((d) => (d.includes(key) ? d.filter((k) => k !== key) : [...d, key]));
+  }
+
+  const domainLabel = () => {
+    const d = domains();
+    if (d.length === 0) return "All tags";
+    if (d.length === 1) return services()?.[d[0]]?.name ?? "1 domain";
+    return `${d.length} domains`;
+  };
+
+  async function runSearch(tags: string[]) {
+    setLastTags(tags);
     setBusy(true);
     setError(null);
+    const opts = { sortType: sortType(), sortAsc: sortAsc() };
     try {
-      const raw = query().trim();
-      const tags = raw
-        ? raw.split(",").map((t) => t.trim()).filter(Boolean)
-        : ["system:everything"];
-      setFileIds(await api.searchFiles(tags));
+      const keys = domains();
+      let ids: number[];
+      if (keys.length <= 1 || keys.length === tagServices().length) {
+        // один домен, либо все → один запрос с точной сортировкой
+        ids = await api.searchFiles(tags, { ...opts, tagServiceKey: keys.length === 1 ? keys[0] : undefined });
+      } else {
+        // подмножество доменов → union по-доменно (API не скоупит на subset одним вызовом)
+        const lists = await Promise.all(keys.map((k) => api.searchFiles(tags, { ...opts, tagServiceKey: k })));
+        const seen = new Set<number>();
+        ids = [];
+        for (const l of lists) for (const id of l) if (!seen.has(id)) (seen.add(id), ids.push(id));
+      }
+      setFileIds(ids);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -39,21 +89,75 @@ function Main(props: { settings: Settings; onEditSettings: () => void }) {
     }
   }
 
+  // смена сортировки/скоупа → перезапуск последнего поиска
+  createEffect(
+    on([sortType, sortAsc, domains], () => {
+      const t = lastTags();
+      if (t) void runSearch(t);
+    }, { defer: true }),
+  );
+
   return (
     <div class="app">
       <header>
-        <form onSubmit={search}>
-          <input
-            placeholder="теги через запятую, напр. character:samus, blue eyes"
-            value={query()}
-            onInput={(e) => setQuery(e.currentTarget.value)}
-          />
-          <button type="submit" disabled={busy()}>
-            {busy() ? "…" : "Поиск"}
-          </button>
-        </form>
-        <span class="count">{fileIds().length} файлов</span>
-        <button class="gear" title="Настройки" onClick={props.onEditSettings}>
+        <SearchBar
+          api={api}
+          busy={busy()}
+          onSubmit={runSearch}
+          tagServiceKey={scopeKey()}
+        />
+        <select
+          class="ctl"
+          value={String(sortType())}
+          onChange={(e) => setSortType(Number(e.currentTarget.value))}
+        >
+          <For each={SORTS}>{([v, label]) => <option value={v}>{label}</option>}</For>
+        </select>
+        <button
+          class="ctl dir"
+          title="Sort direction"
+          onClick={() => setSortAsc((a) => !a)}
+        >
+          {sortAsc() ? "↑" : "↓"}
+        </button>
+        <Show when={tagServices().length}>
+          <div class="domains">
+            <button class="ctl" title="Tag domains" onClick={() => setDomainsOpen((o) => !o)}>
+              {domainLabel()} ▾
+            </button>
+            <Show when={domainsOpen()}>
+              <div class="backdrop" onClick={() => setDomainsOpen(false)} />
+              <ul class="domain-menu">
+                <li>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={domains().length === 0}
+                      onChange={() => setDomains([])}
+                    />
+                    All tags
+                  </label>
+                </li>
+                <For each={tagServices()}>
+                  {(s) => (
+                    <li>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={domains().includes(s.service_key)}
+                          onChange={() => toggleDomain(s.service_key)}
+                        />
+                        {s.name}
+                      </label>
+                    </li>
+                  )}
+                </For>
+              </ul>
+            </Show>
+          </div>
+        </Show>
+        <span class="count">{fileIds().length} files</span>
+        <button class="gear" title="Settings" onClick={props.onEditSettings}>
           ⚙
         </button>
       </header>
@@ -103,7 +207,7 @@ function SettingsForm(props: { onSave: (s: Settings) => void }) {
     const s: Settings = { baseUrl: baseUrl().trim(), accessKey: accessKey().trim() };
     try {
       if (!(await new HydrusApi(s).verify())) {
-        throw new Error("Не удалось подключиться — проверь адрес и ключ.");
+        throw new Error("Could not connect — check the URL and access key.");
       }
       saveSettings(s);
       props.onSave(s);
@@ -118,7 +222,7 @@ function SettingsForm(props: { onSave: (s: Settings) => void }) {
     <form class="settings" onSubmit={submit}>
       <h1>Hydrus Client</h1>
       <label>
-        Адрес Client API
+        Client API URL
         <input value={baseUrl()} onInput={(e) => setBaseUrl(e.currentTarget.value)} />
       </label>
       <label>
@@ -133,11 +237,11 @@ function SettingsForm(props: { onSave: (s: Settings) => void }) {
         <div class="error">{error()}</div>
       </Show>
       <button type="submit" disabled={busy()}>
-        {busy() ? "Проверка…" : "Подключиться"}
+        {busy() ? "Checking…" : "Connect"}
       </button>
       <p class="hint">
-        Включи Client API в Hydrus: <em>services → manage services → client api</em>.
-        Создай ключ доступа с правами на поиск и просмотр файлов и включи «support CORS».
+        Enable the Client API in Hydrus: <em>services → manage services → client api</em>.
+        Create an access key with permission to search and view files, and turn on “support CORS”.
       </p>
     </form>
   );

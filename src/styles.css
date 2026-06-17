@@ -35,20 +35,168 @@ body {
 header {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   padding: 8px 12px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
 }
 
-header form {
+.search-box {
+  position: relative;
+  flex: 1;
+  min-width: 240px;
+}
+
+/* контролы сортировки / скоупа */
+.ctl {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 8px;
+  font: inherit;
+}
+
+.ctl:hover {
+  border-color: var(--accent);
+}
+
+.ctl.dir {
+  cursor: pointer;
+  width: 34px;
+  text-align: center;
+}
+
+/* чек-лист тег-доменов */
+.domains {
+  position: relative;
+}
+
+.domains > .ctl {
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+}
+
+.domain-menu {
+  position: absolute;
+  z-index: 11;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 180px;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+.domain-menu label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.domain-menu label:hover {
+  background: var(--bg);
+}
+
+.domain-menu input {
+  accent-color: var(--accent);
+}
+
+.search-box form {
   display: flex;
   gap: 6px;
+}
+
+.search-box input {
   flex: 1;
 }
 
-header input {
-  flex: 1;
+/* ---- автокомплит тегов ---- */
+.suggest {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 340px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+.suggest-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.suggest-item.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.suggest-count {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
+.suggest-sys {
+  flex: none;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.suggest-item.active .suggest-count {
+  color: #dbe6ff;
+}
+
+/* ---- тег с namespace ---- */
+.tag-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-ns {
+  color: var(--ns-color, inherit);
+  font-weight: 600;
+}
+
+/* совпавшие при fuzzy символы — приглушённо, только жирностью */
+.match {
+  font-weight: 700;
+}
+
+/* на подсвеченной строке подсказки — namespace читаемо поверх синего фона */
+.suggest-item.active .tag-ns {
+  color: #fff;
 }
 
 .count {
@@ -174,8 +322,54 @@ button:disabled {
   margin-bottom: 10px;
 }
 
+/* ---- рейтинги ---- */
+.ratings {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.rating {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rating-name {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rating-val {
+  flex: none;
+  color: #e8c84a;
+  letter-spacing: 1px;
+}
+
+/* ---- группы тегов по доменам ---- */
+.tag-group {
+  margin-bottom: 12px;
+}
+
+.group-name {
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.group-count {
+  opacity: 0.6;
+}
+
 .tag {
-  padding: 2px 0;
+  padding: 1px 0;
   word-break: break-word;
 }
 
