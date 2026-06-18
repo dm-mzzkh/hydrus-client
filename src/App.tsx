@@ -9,6 +9,7 @@ import { Toaster } from "./components/Toaster";
 import { Thumb } from "./components/Thumb";
 import { VirtualGrid } from "./components/VirtualGrid";
 import { FileViewer } from "./components/FileViewer";
+import { Duplicates } from "./components/Duplicates";
 
 export function App() {
   const [settings, setSettings] = createSignal<Settings | null>(loadSettings());
@@ -79,6 +80,7 @@ function Main(props: { settings: Settings; onEditSettings: () => void }) {
   const [columns, setColumns] = createSignal(1);
   const [theme, setTheme] = createSignal<Theme>(loadTheme());
   const [busy, setBusy] = createSignal(false);
+  const [dupesOpen, setDupesOpen] = createSignal(false);
 
   function toggleTheme() {
     const t: Theme = theme() === "dark" ? "light" : "dark";
@@ -378,6 +380,14 @@ function Main(props: { settings: Settings; onEditSettings: () => void }) {
           </div>
         </Show>
         <span class="count">{fileIds().length} files</span>
+        <button
+          class="gear"
+          title="Find duplicates in this search"
+          disabled={!lastTags()}
+          onClick={() => setDupesOpen(true)}
+        >
+          ≊
+        </button>
         <button class="gear" title="Toggle preview sound" onClick={toggleMuted}>
           {muted() ? "🔇" : "🔊"}
         </button>
@@ -443,6 +453,19 @@ function Main(props: { settings: Settings; onEditSettings: () => void }) {
           tagService={localTagService()}
           onSearchTag={searchTag}
           onClose={() => setSelected(null)}
+        />
+      </Show>
+
+      <Show when={dupesOpen()}>
+        <Duplicates
+          api={api}
+          tags={lastTags() ?? []}
+          tagServiceKey={scopeKey()}
+          onClose={(changed) => {
+            setDupesOpen(false);
+            const t = lastTags();
+            if (changed && t) void runSearch(t);
+          }}
         />
       </Show>
     </div>

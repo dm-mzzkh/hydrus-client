@@ -742,3 +742,248 @@ button:disabled {
   font-size: 12px;
   margin: 0;
 }
+
+/* ---- duplicates panel ---- */
+.dupes {
+  position: relative;
+  margin: auto;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dupes .toolbar {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.dupes-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.dupes-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.pair-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+}
+
+.pair-side.keep {
+  border-color: #3fb950;
+  background: color-mix(in srgb, #3fb950 10%, transparent);
+}
+
+.pair-side.remove {
+  border-color: var(--err-fg);
+  background: color-mix(in srgb, var(--err-fg) 10%, transparent);
+}
+
+.pair-badge {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+
+.pair-side.keep .pair-badge {
+  color: #3fb950;
+}
+
+.pair-side.remove .pair-badge {
+  color: var(--err-fg);
+}
+
+.pair-thumb {
+  max-width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+  background: var(--thumb-bg);
+  border-radius: 4px;
+}
+
+.pair-meta {
+  display: flex;
+  gap: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.pair-mid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: 160px;
+  text-align: center;
+}
+
+.pair-reason {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.pair-flag {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--star);
+  border: 1px solid var(--star);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+/* активный режим (List / Filter) */
+.dupes .ctl.on {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* ---- manual filter ---- */
+.filter {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.filter > .counter {
+  text-align: center;
+}
+
+.filter-pics {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.filter-side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  padding: 6px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+}
+
+.filter-side.suggested {
+  border-color: #3fb950;
+}
+
+.filter-cap {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.filter-side.suggested .filter-cap {
+  color: #3fb950;
+}
+
+.filter-side a {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.filter-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  background: var(--thumb-bg);
+  border-radius: 4px;
+}
+
+/* видео не обёрнуто в центрирующий <a> — растягиваем само */
+video.filter-img {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.filter-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-done {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+/* ---- auto-resolve preview ---- */
+.pair.active {
+  border-color: var(--accent);
+}
+
+.pair-pick input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.dupes-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+button.danger {
+  background: var(--err-fg);
+  color: #fff;
+  border-color: var(--err-fg);
+}
+
+button.danger:hover:not(:disabled) {
+  filter: brightness(1.1);
+  border-color: var(--err-fg);
+}

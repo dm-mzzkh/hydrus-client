@@ -44,6 +44,47 @@ export interface SearchOpts {
   fileServiceKey?: string;
 }
 
+/** Поисковые параметры для эндпоинтов потенциальных дублей (manage_file_relationships). */
+export interface PotentialsQuery {
+  /** предикаты поиска (как в searchFiles) → tags_1 */
+  tags: string[];
+  /** скоуп по тег-сервису → tag_service_key_1 */
+  tagServiceKey?: string;
+  /** potentials_search_type: 0 = один файл матчит, 1 = оба матчат (по умолч.), 2 = A матчит 1 / B матчит 2 */
+  searchType?: number;
+  /** pixel_duplicates: 0 = обязаны быть пиксель-идентичны, 1 = могут (по умолч.), 2 = не должны */
+  pixelDuplicates?: number;
+  /** max_hamming_distance — «строгость» поиска похожих (по умолч. 4); игнор при pixelDuplicates=0 */
+  maxHammingDistance?: number;
+  /** max_num_pairs — размер батча пар (только для potentialPairs) */
+  maxNumPairs?: number;
+  /** duplicate_pair_sort_type (только для potentialPairs); 0 = по размеру большего файла */
+  sortType?: number;
+}
+
+/** Одна устанавливаемая связь для set_file_relationships. */
+export interface RelationshipSet {
+  /** выживший («король» группы) */
+  hash_a: string;
+  /** проигравший */
+  hash_b: string;
+  /** см. DUPLICATE; 4 = «A лучше B» */
+  relationship: number;
+  /** слить теги/рейтинги/urls по настройкам мерджа Hydrus */
+  do_default_content_merge: boolean;
+  delete_a?: boolean;
+  delete_b?: boolean;
+}
+
+/** Значения enum relationship для set_file_relationships. */
+export const DUPLICATE = {
+  POTENTIAL: 0,
+  FALSE_POSITIVE: 1,
+  SAME_QUALITY: 2,
+  ALTERNATE: 3,
+  A_BETTER: 4,
+} as const;
+
 export interface FileMetadata {
   file_id: number;
   hash: string;
@@ -291,5 +332,66 @@ export class HydrusApi {
   async addUrl(url: string): Promise<string> {
     const data = (await this.post("/add_urls/add_url", { url })) as { human_result_text?: string };
     return data.human_result_text ?? "ok";
+  }
+
+  // ---- дубли / отношения файлов (требует право Manage File Relationships) ----
+
+  /** Общие поисковые параметры для get_potentials_count / get_potential_pairs. */
+  private applyPotentialsParams(url: URL, q: PotentialsQuery): void {
+    url.searchParams.set("tags_1", JSON.stringify(q.tags));
+    if (q.tagServiceKey) url.searchParams.set("tag_service_key_1", q.tagServiceKey);
+    url.searchParams.set("potentials_search_type", String(q.searchType ?? 1));
+    url.searchParams.set("pixel_duplicates", String(q.pixelDuplicates ?? 1));
+    url.searchParams.set("max_hamming_distance", String(q.maxHammingDistance ?? 4));
+  }
+
+  /** Число оставшихся потенциальных пар дублей в заданном поисковом домене. */
+  async potentialsCount(q: PotentialsQuery): Promise<number> {
+    const url = new URL(`${this.base}/manage_file_relationships/get_potentials_count`);
+    this.applyPotentialsParams(url, q);
+    const r = await fetch(url, { headers: this.headers });
+    if (!r.ok) throw new Error(`get_potentials_count: ${r.status} ${r.statusText}`);
+    const data = (await r.json()) as { potential_duplicates_count: number };
+    return data.potential_duplicates_count;
+  }
+
+  /** Батч пар [hashA, hashB] для фильтрации. Хэши — всегда «короли», доступные в домене. */
+  async potentialPairs(q: PotentialsQuery): Promise<[string, string][]> {
+    const url = new URL(`${this.base}/manage_file_relationships/get_potential_pairs`);
+    this.applyPotentialsParams(url, q);
+    if (q.maxNumPairs !== undefined) url.searchParams.set("max_num_pairs", String(q.maxNumPairs));
+    if (q.sortType !== undefined) url.searchParams.set("duplicate_pair_sort_type", String(q.sortType));
+    const r = await fetch(url, { headers: this.headers });
+    if (!r.ok) throw new Error(`get_potential_pairs: ${r.status} ${r.statusText}`);
+    const data = (await r.json()) as { potential_duplicate_pairs: [string, string][] };
+    return data.potential_duplicate_pairs;
+  }
+
+  /** Установить связи (better/worse, same, alternate, false-positive) пакетом. */
+  async setFileRelationships(relationships: RelationshipSet[]): Promise<void> {
+    if (!relationships.length) return;
+    await this.post("/manage_file_relationships/set_file_relationships", { relationships });
+  }
+
+  /**
+   * Полные метаданные по списку хэшей (с тегами и time_imported — нужно для метадиффа
+   * и comparator'а дублей). Не кешируем: после слияния дублей данные меняются, а батчи мелкие.
+   */
+  async metadataByHash(hashes: string[]): Promise<FileMetadata[]> {
+    if (!hashes.length) return [];
+    const url = new URL(`${this.base}/get_files/file_metadata`);
+    url.searchParams.set("hashes", JSON.stringify(hashes));
+    const r = await fetch(url, { headers: this.headers });
+    if (!r.ok) throw new Error(`file_metadata: ${r.status} ${r.statusText}`);
+    const data = (await r.json()) as { metadata?: FileMetadata[] };
+    return data.metadata ?? [];
+  }
+
+  /** URL миниатюры/файла по хэшу (эндпоинты дублей отдают хэши, не file_id). */
+  thumbnailUrlByHash(hash: string): string {
+    return `${this.base}/get_files/thumbnail?hash=${hash}&Hydrus-Client-API-Access-Key=${this.keyParam}`;
+  }
+  fileUrlByHash(hash: string): string {
+    return `${this.base}/get_files/file?hash=${hash}&Hydrus-Client-API-Access-Key=${this.keyParam}`;
   }
 }
