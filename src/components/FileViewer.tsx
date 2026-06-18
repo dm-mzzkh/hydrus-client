@@ -11,10 +11,34 @@ import {
   Show,
   Switch,
 } from "solid-js";
-import { HydrusApi, type FileMetadata, type ServiceInfo } from "../api/hydrus";
+import { HydrusApi, isFlashMime, type FileMetadata, type ServiceInfo } from "../api/hydrus";
+import { muted } from "../prefs";
 import { pushToast } from "../toast";
 import { TagInput } from "./TagInput";
 import { TagLabel } from "./TagLabel";
+
+// Ruffle — эмулятор Flash на WASM. Браузеры SWF не играют, поэтому грузим Ruffle
+// лениво с CDN (один раз на страницу) и только когда реально открыли .swf.
+const RUFFLE_CDN = "https://unpkg.com/@ruffle-rs/ruffle";
+let rufflePromise: Promise<any> | undefined;
+function loadRuffle(): Promise<any> {
+  if (rufflePromise) return rufflePromise;
+  rufflePromise = new Promise<any>((resolve, reject) => {
+    const w = window as any;
+    if (w.RufflePlayer?.newest) return resolve(w.RufflePlayer.newest());
+    const s = document.createElement("script");
+    s.src = RUFFLE_CDN;
+    s.async = true;
+    s.onload = () => {
+      const r = w.RufflePlayer?.newest?.();
+      r ? resolve(r) : reject(new Error("Ruffle загрузился, но RufflePlayer недоступен"));
+    };
+    s.onerror = () => reject(new Error("не удалось загрузить Ruffle с CDN"));
+    document.head.appendChild(s);
+  });
+  rufflePromise.catch(() => (rufflePromise = undefined)); // дать повторить попытку
+  return rufflePromise;
+}
 
 interface Props {
   api: HydrusApi;
@@ -37,6 +61,9 @@ export function FileViewer(props: Props) {
   const applyLocal = (fn: (m: FileMetadata) => FileMetadata) => mutate((m) => (m ? fn(m) : m));
   const ready = () => (meta.state === "ready" ? meta() : undefined);
   const isVid = () => (ready()?.mime ?? "").startsWith("video");
+  const isFlash = () => isFlashMime(ready()?.mime);
+  // интерактивные типы (видео-контролы, Flash-игры) — мышь отдаём им, не паним
+  const isInteractive = () => isVid() || isFlash();
 
   // зум / пан / режим масштаба
   const [scale, setScale] = createSignal(1);
@@ -81,7 +108,7 @@ export function FileViewer(props: Props) {
           props.api
             .fileMetadata(id)
             .then((m) => {
-              if (!(m.mime ?? "").startsWith("video")) {
+              if ((m.mime ?? "").startsWith("image")) {
                 const im = new Image();
                 im.src = props.api.fileUrl(id);
               }
@@ -210,7 +237,7 @@ export function FileViewer(props: Props) {
     sy = e.clientY;
     ox = tx();
     oy = ty();
-    if (!isVid()) e.preventDefault();
+    if (!isInteractive()) e.preventDefault();
   }
   function onWheel(e: WheelEvent) {
     e.preventDefault();
@@ -267,12 +294,14 @@ export function FileViewer(props: Props) {
                       classList={{ "media-inner": true, actual: actual() }}
                       style={{ transform: `translate(${tx()}px, ${ty()}px) scale(${scale()})` }}
                     >
-                      <Show
-                        when={(m().mime ?? "").startsWith("video")}
-                        fallback={<ImageView api={props.api} meta={m()} />}
-                      >
-                        <video src={props.api.fileUrl(m().file_id)} controls autoplay loop />
-                      </Show>
+                      <Switch fallback={<ImageView api={props.api} meta={m()} />}>
+                        <Match when={(m().mime ?? "").startsWith("video")}>
+                          <video src={props.api.fileUrl(m().file_id)} controls autoplay loop />
+                        </Match>
+                        <Match when={isFlashMime(m().mime)}>
+                          <FlashView api={props.api} meta={m()} />
+                        </Match>
+                      </Switch>
                     </div>
                   </div>
                   <Sidebar
@@ -338,6 +367,54 @@ function ImageView(props: { api: HydrusApi; meta: FileMetadata }) {
     ),
   );
   return <img classList={{ blur: !loaded() }} src={src()} alt={props.meta.hash} draggable={false} />;
+}
+
+/** Воспроизведение SWF: создаём Ruffle-плеер и скармливаем ему fileUrl (ключ уже в query). */
+function FlashView(props: { api: HydrusApi; meta: FileMetadata }) {
+  let host!: HTMLDivElement;
+  const [error, setError] = createSignal<string>();
+  const [loading, setLoading] = createSignal(true);
+
+  createEffect(
+    on(
+      () => props.meta.file_id,
+      (id) => {
+        setError(undefined);
+        setLoading(true);
+        let player: any;
+        let cancelled = false;
+        loadRuffle()
+          .then((ruffle) => {
+            if (cancelled) return;
+            host.replaceChildren(); // на случай повторного запуска (навигация между .swf)
+            player = ruffle.createPlayer();
+            player.style.width = "100%";
+            player.style.height = "100%";
+            host.appendChild(player);
+            return player.load({ url: props.api.fileUrl(id), autoplay: "on", volume: muted() ? 0 : 1 });
+          })
+          .then(() => !cancelled && setLoading(false))
+          .catch((e) => !cancelled && setError(String(e)));
+        onCleanup(() => {
+          cancelled = true;
+          try {
+            player?.remove(); // Ruffle уничтожает инстанс при отсоединении от DOM
+          } catch {}
+        });
+      },
+    ),
+  );
+
+  return (
+    <Show when={!error()} fallback={<p class="error">Flash failed: {error()}</p>}>
+      <div class="flash-wrap">
+        <div ref={host} class="flash-host" />
+        <Show when={loading()}>
+          <span class="loading flash-loading">Loading Flash…</span>
+        </Show>
+      </div>
+    </Show>
+  );
 }
 
 // --- оптимистичные правки метаданных (для мгновенного UI без refetch) ---

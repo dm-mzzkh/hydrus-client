@@ -1,5 +1,5 @@
 import { createResource, createSignal, onCleanup, Show } from "solid-js";
-import type { HydrusApi } from "../api/hydrus";
+import { isFlashMime, type HydrusApi } from "../api/hydrus";
 import { muted } from "../prefs";
 
 function fmtDur(ms: number): string {
@@ -28,13 +28,16 @@ export function Thumb(props: {
   let wrapEl!: HTMLDivElement;
 
   const isVideo = () => (info()?.mime ?? "").startsWith("video");
+  const isFlash = () => isFlashMime(info()?.mime);
   const animated = () => {
     const m = info();
-    return !!m && (isVideo() || (m.num_frames ?? 0) > 1 || !!m.duration);
+    // SWF не превьюшим наведением — браузер его как <img>/<video> не отрисует
+    return !!m && !isFlash() && (isVideo() || (m.num_frames ?? 0) > 1 || !!m.duration);
   };
   const badge = () => {
     const m = info();
     if (!m) return null;
+    if (isFlash()) return "SWF";
     if (isVideo()) return m.duration ? fmtDur(m.duration) : "▶";
     if ((m.num_frames ?? 0) > 1 || m.duration) return "GIF";
     return null;

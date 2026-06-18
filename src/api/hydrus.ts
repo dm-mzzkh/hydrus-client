@@ -85,6 +85,10 @@ export const DUPLICATE = {
   A_BETTER: 4,
 } as const;
 
+/** MIME-тип Flash (SWF) в Hydrus — браузер его не играет, гоняем через Ruffle. */
+export const FLASH_MIME = "application/x-shockwave-flash";
+export const isFlashMime = (mime?: string | null): boolean => mime === FLASH_MIME;
+
 export interface FileMetadata {
   file_id: number;
   hash: string;
