@@ -1,14 +1,7 @@
 import { createEffect, createResource, createSignal, For, Show } from "solid-js";
 import type { HydrusApi } from "../api/hydrus";
-import { fuzzyMatch } from "../fzf";
-import { fetchCandidates } from "../tagsuggest";
+import { fetchCandidates, rankCandidates, type RankedTag } from "../tagsuggest";
 import { TagLabel } from "./TagLabel";
-
-interface Scored {
-  value: string;
-  count: number;
-  positions: number[];
-}
 
 /** Поле ввода одного тега с тем же fuzzy-автокомплитом, что и в поиске. */
 export function TagInput(props: {
@@ -27,16 +20,11 @@ export function TagInput(props: {
 
   const [results] = createResource(
     () => (open() ? needle() : ""),
-    async (q): Promise<Scored[]> => {
+    async (q): Promise<RankedTag[]> => {
       const n = q.trim();
       if (!n) return [];
       const cands = await fetchCandidates(props.api, n, props.tagServiceKey);
-      return cands
-        .map((t) => ({ t, m: fuzzyMatch(n, t.value) }))
-        .filter((x) => x.m)
-        .sort((a, b) => b.m!.score - a.m!.score || b.t.count - a.t.count)
-        .slice(0, 15)
-        .map(({ t, m }) => ({ value: t.value, count: t.count, positions: m!.positions }));
+      return rankCandidates(n, cands);
     },
   );
   const list = () => results() ?? [];

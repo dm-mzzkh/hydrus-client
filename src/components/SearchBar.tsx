@@ -1,7 +1,7 @@
 import { createEffect, createResource, createSignal, For, Show } from "solid-js";
 import type { HydrusApi } from "../api/hydrus";
 import { fuzzyMatch } from "../fzf";
-import { fetchCandidates } from "../tagsuggest";
+import { fetchCandidates, rankCandidates } from "../tagsuggest";
 import { TagLabel } from "./TagLabel";
 
 interface Props {
@@ -85,12 +85,7 @@ export function SearchBar(props: Props) {
       if (!bare) return [];
 
       const candidates = await fetchCandidates(props.api, bare, props.tagServiceKey);
-      const scored = candidates
-        .map((t) => ({ t, m: fuzzyMatch(bare, t.value) }))
-        .filter((x) => x.m)
-        .sort((a, b) => b.m!.score - a.m!.score || b.t.count - a.t.count)
-        .slice(0, 15);
-      return scored.map(({ t, m }) => ({ value: t.value, count: t.count, positions: m!.positions }));
+      return rankCandidates(bare, candidates);
     },
   );
 
