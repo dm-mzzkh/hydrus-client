@@ -176,18 +176,30 @@ export function FileViewer(props: Props) {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      console.error(e);
+      pushToast(`Download failed: ${String(e)}`, { kind: "error" });
+    }
+  }
+
+  async function copyHash(hash: string) {
+    try {
+      await navigator.clipboard.writeText(hash);
+      pushToast("Hash copied");
+    } catch {
+      pushToast("Copy failed", { kind: "error" });
     }
   }
 
   function onKey(e: KeyboardEvent) {
+    const t = e.target as HTMLElement | null;
+    const typing = !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA");
     if (e.key === "Escape") {
       e.preventDefault();
-      props.onClose();
+      // во время ввода тега Escape снимает фокус (и закрывает автокомплит), а не вьюер
+      if (typing) t?.blur();
+      else props.onClose();
       return;
     }
-    const t = e.target as HTMLElement | null;
-    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+    if (typing) return;
     const rows = Math.max(1, props.columns);
     switch (e.code) {
       case "KeyQ": e.preventDefault(); props.onClose(); break;
@@ -274,7 +286,7 @@ export function FileViewer(props: Props) {
           <Show when={ready()}>
             {(m) => (
               <>
-                <button title="Copy hash" onClick={() => navigator.clipboard?.writeText(m().hash)}>⧉</button>
+                <button title="Copy hash" onClick={() => void copyHash(m().hash)}>⧉</button>
                 <button title="Download" onClick={() => void download(m())}>⬇</button>
               </>
             )}

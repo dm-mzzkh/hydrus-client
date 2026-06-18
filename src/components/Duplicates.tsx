@@ -293,13 +293,14 @@ function ManualFilter(props: {
   function onKey(e: KeyboardEvent) {
     if (e.key === "Escape") { e.preventDefault(); props.onClose(); return; }
     if (done()) return;
-    switch (e.key) {
+    // по e.code — не зависит от раскладки (как навигация во вьюере)
+    switch (e.code) {
       case "ArrowLeft": e.preventDefault(); act("a-better"); break;
       case "ArrowRight": e.preventDefault(); act("b-better"); break;
-      case "=": case "s": e.preventDefault(); act("same"); break;
-      case "a": e.preventDefault(); act("alt"); break;
-      case "x": e.preventDefault(); act("notdupe"); break;
-      case " ": e.preventDefault(); act("skip"); break;
+      case "Equal": case "NumpadAdd": case "KeyS": e.preventDefault(); act("same"); break;
+      case "KeyA": e.preventDefault(); act("alt"); break;
+      case "KeyX": e.preventDefault(); act("notdupe"); break;
+      case "Space": e.preventDefault(); act("skip"); break;
     }
   }
 

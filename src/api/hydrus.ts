@@ -332,12 +332,6 @@ export class HydrusApi {
     fileIds.forEach((id) => this.invalidateMetadata(id));
   }
 
-  /** Импорт по URL. Возвращает текст результата Hydrus. */
-  async addUrl(url: string): Promise<string> {
-    const data = (await this.post("/add_urls/add_url", { url })) as { human_result_text?: string };
-    return data.human_result_text ?? "ok";
-  }
-
   // ---- дубли / отношения файлов (требует право Manage File Relationships) ----
 
   /** Общие поисковые параметры для get_potentials_count / get_potential_pairs. */

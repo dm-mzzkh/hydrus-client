@@ -1,11 +1,7 @@
 import { createResource, createSignal, onCleanup, Show } from "solid-js";
 import { isFlashMime, type HydrusApi } from "../api/hydrus";
+import { fmtDur } from "../dupes";
 import { muted } from "../prefs";
-
-function fmtDur(ms: number): string {
-  const s = Math.round(ms / 1000);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}
 
 /**
  * Миниатюра. Базовые метаданные тянутся батчем (бейдж ▶/мм:сс/GIF). При наведении
