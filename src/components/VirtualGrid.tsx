@@ -1,4 +1,4 @@
-import { createSignal, onCleanup, onMount, For, type JSX } from "solid-js";
+import { createEffect, createSignal, onCleanup, onMount, For, type JSX } from "solid-js";
 
 interface Props {
   count: number;
@@ -7,6 +7,10 @@ interface Props {
   /** зазор между ячейками, px */
   gap: number;
   renderCell: (index: number) => JSX.Element;
+  /** сообщает текущее число колонок (для навигации по рядам) */
+  onColumns?: (n: number) => void;
+  /** сообщает индексы видимых ячеек (для префетча) */
+  onVisible?: (indices: number[]) => void;
 }
 
 /**
@@ -30,6 +34,7 @@ export function VirtualGrid(props: Props) {
 
   const step = () => props.cellSize + props.gap;
   const cols = () => Math.max(1, Math.floor((size().w + props.gap) / step()));
+  createEffect(() => props.onColumns?.(cols()));
   const rowCount = () => Math.ceil(props.count / cols());
   const totalHeight = () => rowCount() * step();
 
@@ -46,6 +51,8 @@ export function VirtualGrid(props: Props) {
     }
     return items;
   };
+
+  createEffect(() => props.onVisible?.(visible()));
 
   return (
     <div

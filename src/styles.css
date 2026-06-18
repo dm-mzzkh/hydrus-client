@@ -1,11 +1,35 @@
+/* светлая тема — по умолчанию */
 :root {
+  --bg: #f4f5f7;
+  --panel: #ffffff;
+  --border: #d9dde3;
+  --text: #1b1e23;
+  --muted: #6a7280;
+  --accent: #2563eb;
+  --thumb-bg: #e9ebf0;
+  --err-bg: #fdeaea;
+  --err-fg: #b42318;
+  --star: #c08a00;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
   --bg: #14161a;
   --panel: #1d2026;
   --border: #2c313a;
   --text: #e6e8eb;
   --muted: #8b919b;
   --accent: #4c8bf5;
+  --thumb-bg: #0c0d10;
+  --err-bg: #3a1d1d;
+  --err-fg: #ffb4b4;
+  --star: #e8c84a;
   color-scheme: dark;
+}
+
+/* приглушённые namespace-цвета рассчитаны на тёмный фон — на светлом затемняем */
+:root:not([data-theme="dark"]) .tag-ns {
+  filter: brightness(0.62) saturate(1.5);
 }
 
 * {
@@ -238,10 +262,38 @@ button:disabled {
 }
 
 .error {
-  background: #3a1d1d;
-  color: #ffb4b4;
+  background: var(--err-bg);
+  color: var(--err-fg);
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
+}
+
+/* батч-бар мультивыбора */
+.batchbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.batchbar button {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.batchbar button:hover {
+  border-color: var(--accent);
+}
+
+.batchbar input {
+  flex: 1;
+  max-width: 220px;
 }
 
 /* ---- virtual grid ---- */
@@ -257,17 +309,62 @@ button:disabled {
   left: 0;
 }
 
+.thumb-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
 .thumb {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  background: #0c0d10;
+  background: var(--thumb-bg);
   border-radius: 4px;
-  cursor: pointer;
 }
 
-.thumb:hover {
+.thumb-wrap:hover .thumb {
   outline: 2px solid var(--accent);
+}
+
+.thumb-wrap.selected .thumb {
+  outline: 3px solid var(--accent);
+}
+
+.sel-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* hover-превью анимированного файла поверх миниатюры */
+.preview {
+  position: absolute;
+  inset: 0;
+}
+
+/* бейдж анимированного файла (▶ / мм:сс / GIF) */
+.badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
 }
 
 /* ---- viewer ---- */
@@ -277,6 +374,7 @@ button:disabled {
   background: rgba(0, 0, 0, 0.85);
   display: flex;
   padding: 24px;
+  outline: none;
 }
 
 .viewer {
@@ -285,12 +383,41 @@ button:disabled {
   width: 100%;
   height: 100%;
   display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .viewer-body {
+  flex: 1;
+  min-height: 0;
   display: flex;
   width: 100%;
   gap: 12px;
+}
+
+/* ---- тулбар вьюера ---- */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toolbar button {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.toolbar button:hover {
+  border-color: var(--accent);
+}
+
+.spacer {
+  flex: 1;
 }
 
 .media {
@@ -299,13 +426,55 @@ button:disabled {
   align-items: center;
   justify-content: center;
   min-width: 0;
+  overflow: hidden;
 }
 
-.media img,
-.media video {
+.media.grab {
+  cursor: grab;
+}
+
+.media.grab:active {
+  cursor: grabbing;
+}
+
+.media-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  will-change: transform;
+}
+
+.media-inner img,
+.media-inner video {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* прогрессивная загрузка: блюр на миниатюре, пока грузится полноразмер */
+.media-inner img.blur {
+  filter: blur(8px);
+  transition: filter 0.12s ease-out;
+}
+
+.counter {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* режим 1:1 — реальные пиксели, навигация паном */
+.media-inner.actual img,
+.media-inner.actual video {
+  max-width: none;
+  max-height: none;
+  width: auto;
+  height: auto;
+  object-fit: none;
 }
 
 .sidebar {
@@ -347,7 +516,7 @@ button:disabled {
 
 .rating-val {
   flex: none;
-  color: #e8c84a;
+  color: var(--star);
   letter-spacing: 1px;
 }
 
@@ -369,8 +538,112 @@ button:disabled {
 }
 
 .tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   padding: 1px 0;
+}
+
+.tag-text {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
   word-break: break-word;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.tag-text:hover {
+  text-decoration: underline;
+}
+
+/* выделенный (Ctrl-клик) тег */
+.tag-text.tagsel {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  border-radius: 3px;
+}
+
+/* X-режим: тег под удаление краснеет (на наведении и для всех выделенных) */
+.tag-text.del:hover {
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tag-text.del:hover,
+.tag-text.del:hover *,
+.tag-text.del.tagsel,
+.tag-text.del.tagsel * {
+  color: #e0556b;
+}
+
+.tag-x {
+  flex: none;
+  visibility: hidden;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.tag:hover .tag-x {
+  visibility: visible;
+}
+
+.tag-x:hover {
+  color: #e0556b;
+}
+
+.tag-input {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.add-tag {
+  width: 100%;
+}
+
+.known-url {
+  display: block;
+  color: var(--accent);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 0;
+}
+
+/* интерактивные рейтинги */
+.rating-ctl {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.rating-ctl button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 1px;
+}
+
+.rating-ctl button.on {
+  color: var(--star);
+}
+
+.rating-ctl button:hover {
+  color: var(--text);
+}
+
+.incdec {
+  min-width: 1.5em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .muted {
@@ -378,16 +651,66 @@ button:disabled {
 }
 
 .close {
-  position: absolute;
-  top: -10px;
-  right: -10px;
-  z-index: 1;
-  border-radius: 50%;
+  border-radius: 6px;
 }
 
 .loading {
   margin: auto;
   color: var(--muted);
+}
+
+/* ---- тосты ---- */
+.toaster {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  max-width: 360px;
+}
+
+.toast.error {
+  border-color: var(--err-fg);
+  color: var(--err-fg);
+}
+
+.toast-msg {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toast-undo {
+  flex: none;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.toast-x {
+  flex: none;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
 }
 
 /* ---- settings ---- */

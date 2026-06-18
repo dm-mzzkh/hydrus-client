@@ -1,6 +1,7 @@
 import { createEffect, createResource, createSignal, For, Show } from "solid-js";
 import type { HydrusApi } from "../api/hydrus";
 import { fuzzyMatch } from "../fzf";
+import { fetchCandidates } from "../tagsuggest";
 import { TagLabel } from "./TagLabel";
 
 interface Props {
@@ -9,6 +10,9 @@ interface Props {
   onSubmit: (tags: string[]) => void;
   /** скоуп автокомплита по тег-сервису (домену) */
   tagServiceKey?: string;
+  /** текст поиска управляется снаружи (для «клик по тегу → поиск») */
+  query: string;
+  onQueryChange: (s: string) => void;
 }
 
 interface Suggestion {
@@ -49,44 +53,6 @@ function currentToken(text: string, caret: number) {
   return { start, end, value: text.slice(start, end).trim() };
 }
 
-/** "sam" → "*s*a*m*": subsequence-glob для fuzzy-выборки кандидатов с сервера. */
-function fuzzyGlob(s: string): string {
-  const chars = [...s].filter((c) => c !== " ");
-  return chars.length ? `*${chars.join("*")}*` : "";
-}
-
-/**
- * Запросы к Hydrus по убыванию «фаззи-ности», пробуем по очереди до первого
- * непустого ответа. Так получаем fuzzy там, где сервер тянет glob, и аккуратно
- * деградируем до префикса/raw, если нет.
- */
-function buildQueries(needle: string): string[] {
-  const lower = needle.toLowerCase();
-  const colon = lower.indexOf(":");
-  if (colon >= 0) {
-    const ns = lower.slice(0, colon);
-    const sub = lower.slice(colon + 1);
-    return [`${ns}*:${fuzzyGlob(sub)}`, `${ns}*:${sub}*`, lower].filter(
-      (q) => q && !q.endsWith(":"),
-    );
-  }
-  const compact = lower.replace(/\s/g, "");
-  const queries = compact.length >= 2 ? [fuzzyGlob(lower)] : [];
-  queries.push(`${lower}*`, lower);
-  return queries.filter(Boolean);
-}
-
-async function fetchCandidates(api: HydrusApi, needle: string, tagServiceKey?: string) {
-  for (const q of buildQueries(needle)) {
-    try {
-      const tags = await api.searchTags(q, tagServiceKey);
-      if (tags.length) return tags.slice(0, 200); // count-sorted: берём популярные кандидаты
-    } catch {
-      /* пробуем следующий, менее агрессивный запрос */
-    }
-  }
-  return [];
-}
 
 /** system:-предикаты — фаззи-фильтр локального списка. */
 function systemSuggestions(token: string): Suggestion[] {
@@ -102,7 +68,6 @@ export function SearchBar(props: Props) {
   let listEl: HTMLUListElement | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
-  const [text, setText] = createSignal("");
   const [needle, setNeedle] = createSignal(""); // дебаунснутый текущий тег
   const [open, setOpen] = createSignal(false);
   const [active, setActive] = createSignal(-1);
@@ -141,7 +106,7 @@ export function SearchBar(props: Props) {
 
   function onInput(e: InputEvent & { currentTarget: HTMLInputElement }) {
     const el = e.currentTarget;
-    setText(el.value);
+    props.onQueryChange(el.value);
     setActive(-1);
     setOpen(true);
     const tok = currentToken(el.value, el.selectionStart ?? el.value.length);
@@ -150,10 +115,10 @@ export function SearchBar(props: Props) {
   }
 
   function accept(s: Suggestion) {
-    const caret = inputEl.selectionStart ?? text().length;
-    const tok = currentToken(text(), caret);
-    const before = text().slice(0, tok.start);
-    const after = text().slice(tok.end);
+    const caret = inputEl.selectionStart ?? props.query.length;
+    const tok = currentToken(props.query, caret);
+    const before = props.query.slice(0, tok.start);
+    const after = props.query.slice(tok.end);
     // негатив переносим на вставляемый тег (system:-предикаты не негативим)
     const insert = (!s.system && tok.value.startsWith("-") ? "-" : "") + s.value;
 
@@ -169,7 +134,7 @@ export function SearchBar(props: Props) {
       newCaret = newText.length;
     }
 
-    setText(newText);
+    props.onQueryChange(newText);
     setOpen(false);
     setActive(-1);
     queueMicrotask(() => {
@@ -210,7 +175,7 @@ export function SearchBar(props: Props) {
   function submit(e: Event) {
     e.preventDefault();
     setOpen(false);
-    const tags = text().split(",").map((t) => t.trim()).filter(Boolean);
+    const tags = props.query.split(",").map((t) => t.trim()).filter(Boolean);
     props.onSubmit(tags.length ? tags : ["system:everything"]);
   }
 
@@ -220,7 +185,7 @@ export function SearchBar(props: Props) {
         <input
           ref={inputEl}
           placeholder=""
-          value={text()}
+          value={props.query}
           onInput={onInput}
           onKeyDown={onKeyDown}
           onBlur={() => setTimeout(() => setOpen(false), 120)}

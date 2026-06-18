@@ -59,6 +59,9 @@ export interface FileMetadata {
   tags?: Record<string, ServiceTags>;
   /** keyed by service_key */
   ratings?: Record<string, RatingEntry>;
+  known_urls?: string[];
+  time_imported?: number;
+  time_modified?: number;
 }
 
 /**
@@ -69,6 +72,14 @@ export class HydrusApi {
   constructor(private settings: Settings) {}
 
   private servicesCache?: Promise<Record<string, ServiceInfo>>;
+  private metaCache = new Map<number, Promise<FileMetadata>>(); // полные метаданные (с тегами)
+  // базовые метаданные (mime/размеры/длительность, без тегов) — батчатся, отдельный кэш
+  private basicCache = new Map<number, FileMetadata>();
+  private basicWaiters = new Map<
+    number,
+    { promise: Promise<FileMetadata>; resolve: (m: FileMetadata) => void; reject: (e: unknown) => void }
+  >();
+  private basicTimer?: ReturnType<typeof setTimeout>;
 
   private get base(): string {
     return this.settings.baseUrl.replace(/\/+$/, "");
@@ -106,8 +117,17 @@ export class HydrusApi {
     return data.file_ids;
   }
 
-  /** Полные метаданные одного файла (с тегами) — дёргаем при открытии просмотра. */
-  async fileMetadata(fileId: number): Promise<FileMetadata> {
+  /** Полные метаданные одного файла (с тегами), кешируются на инстанс. */
+  fileMetadata(fileId: number): Promise<FileMetadata> {
+    const cached = this.metaCache.get(fileId);
+    if (cached) return cached;
+    const p = this.fetchMetadata(fileId);
+    this.metaCache.set(fileId, p);
+    p.catch(() => this.metaCache.delete(fileId)); // не кешируем ошибку
+    return p;
+  }
+
+  private async fetchMetadata(fileId: number): Promise<FileMetadata> {
     const url = new URL(`${this.base}/get_files/file_metadata`);
     url.searchParams.set("file_ids", JSON.stringify([fileId]));
     const r = await fetch(url, { headers: this.headers });
@@ -116,6 +136,54 @@ export class HydrusApi {
     const meta = data.metadata?.[0];
     if (!meta) throw new Error(`file_metadata: no metadata returned for file ${fileId}`);
     return meta;
+  }
+
+  /**
+   * Базовые метаданные (mime/размеры/длительность/кадры, без тегов).
+   * Запросы за ~60мс объединяются в один батч-вызов file_metadata.
+   */
+  basicMetadata(fileId: number): Promise<FileMetadata> {
+    const cached = this.basicCache.get(fileId);
+    if (cached) return Promise.resolve(cached);
+    const existing = this.basicWaiters.get(fileId);
+    if (existing) return existing.promise;
+
+    let resolve!: (m: FileMetadata) => void;
+    let reject!: (e: unknown) => void;
+    const promise = new Promise<FileMetadata>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    this.basicWaiters.set(fileId, { promise, resolve, reject });
+    if (!this.basicTimer) this.basicTimer = setTimeout(() => this.flushBasic(), 60);
+    return promise;
+  }
+
+  private async flushBasic(): Promise<void> {
+    this.basicTimer = undefined;
+    const batch = [...this.basicWaiters.entries()];
+    this.basicWaiters = new Map();
+    if (!batch.length) return;
+    try {
+      const url = new URL(`${this.base}/get_files/file_metadata`);
+      url.searchParams.set("file_ids", JSON.stringify(batch.map(([id]) => id)));
+      url.searchParams.set("only_return_basic_information", "true");
+      const r = await fetch(url, { headers: this.headers });
+      if (!r.ok) throw new Error(`file_metadata: ${r.status} ${r.statusText}`);
+      const data = (await r.json()) as { metadata?: FileMetadata[] };
+      const byId = new Map((data.metadata ?? []).map((m) => [m.file_id, m]));
+      for (const [id, w] of batch) {
+        const m = byId.get(id);
+        if (m) {
+          this.basicCache.set(id, m);
+          w.resolve(m);
+        } else {
+          w.reject(new Error(`no basic metadata for ${id}`));
+        }
+      }
+    } catch (e) {
+      for (const [, w] of batch) w.reject(e);
+    }
   }
 
   /** Список сервисов (кешируется на инстанс) — для max_stars числовых рейтингов. */
@@ -159,5 +227,69 @@ export class HydrusApi {
 
   private get keyParam(): string {
     return encodeURIComponent(this.settings.accessKey);
+  }
+
+  // ---- запись (требует у ключа соответствующих прав) ----
+
+  private async post(path: string, body: unknown): Promise<unknown> {
+    const r = await fetch(`${this.base}${path}`, {
+      method: "POST",
+      headers: { ...this.headers, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(`${path}: ${r.status} ${r.statusText}`);
+    return r.json().catch(() => ({}));
+  }
+
+  /** Сбросить кэш метаданных файла (после записи). */
+  invalidateMetadata(fileId: number): void {
+    this.metaCache.delete(fileId);
+    this.basicCache.delete(fileId);
+  }
+
+  /** Добавить/удалить теги в локальном тег-сервисе (action 0 = add, 1 = delete). */
+  async addTags(fileIds: number[], serviceKey: string, add: string[] = [], remove: string[] = []): Promise<void> {
+    const actions: Record<string, string[]> = {};
+    if (add.length) actions["0"] = add;
+    if (remove.length) actions["1"] = remove;
+    if (!Object.keys(actions).length) return;
+    await this.post("/add_tags/add_tags", {
+      file_ids: fileIds,
+      service_keys_to_actions_to_tags: { [serviceKey]: actions },
+    });
+    fileIds.forEach((id) => this.invalidateMetadata(id));
+  }
+
+  /** Рейтинг: true/false/null (like), int/null (numerical), int (inc/dec). */
+  async setRating(fileIds: number[], ratingServiceKey: string, rating: boolean | number | null): Promise<void> {
+    await this.post("/edit_ratings/set_rating", {
+      file_ids: fileIds,
+      rating_service_key: ratingServiceKey,
+      rating,
+    });
+    fileIds.forEach((id) => this.invalidateMetadata(id));
+  }
+
+  async archiveFiles(fileIds: number[]): Promise<void> {
+    await this.post("/add_files/archive_files", { file_ids: fileIds });
+    fileIds.forEach((id) => this.invalidateMetadata(id));
+  }
+  async unarchiveFiles(fileIds: number[]): Promise<void> {
+    await this.post("/add_files/unarchive_files", { file_ids: fileIds });
+    fileIds.forEach((id) => this.invalidateMetadata(id));
+  }
+  async deleteFiles(fileIds: number[]): Promise<void> {
+    await this.post("/add_files/delete_files", { file_ids: fileIds });
+    fileIds.forEach((id) => this.invalidateMetadata(id));
+  }
+  async undeleteFiles(fileIds: number[]): Promise<void> {
+    await this.post("/add_files/undelete_files", { file_ids: fileIds });
+    fileIds.forEach((id) => this.invalidateMetadata(id));
+  }
+
+  /** Импорт по URL. Возвращает текст результата Hydrus. */
+  async addUrl(url: string): Promise<string> {
+    const data = (await this.post("/add_urls/add_url", { url })) as { human_result_text?: string };
+    return data.human_result_text ?? "ok";
   }
 }
