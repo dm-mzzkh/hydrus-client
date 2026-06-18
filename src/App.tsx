@@ -10,6 +10,7 @@ import { Thumb } from "./components/Thumb";
 import { VirtualGrid } from "./components/VirtualGrid";
 import { FileViewer } from "./components/FileViewer";
 import { Duplicates } from "./components/Duplicates";
+import { ImportPanel } from "./components/ImportPanel";
 
 export function App() {
   const [settings, setSettings] = createSignal<Settings | null>(loadSettings());
@@ -81,6 +82,7 @@ function Main(props: { settings: Settings; onEditSettings: () => void }) {
   const [theme, setTheme] = createSignal<Theme>(loadTheme());
   const [busy, setBusy] = createSignal(false);
   const [dupesOpen, setDupesOpen] = createSignal(false);
+  const [importOpen, setImportOpen] = createSignal(false);
 
   function toggleTheme() {
     const t: Theme = theme() === "dark" ? "light" : "dark";
@@ -380,6 +382,9 @@ function Main(props: { settings: Settings; onEditSettings: () => void }) {
           </div>
         </Show>
         <span class="count">{fileIds().length} files</span>
+        <button class="gear" title="Import via gallery-dl" onClick={() => setImportOpen(true)}>
+          ＋
+        </button>
         <button
           class="gear"
           title="Find duplicates in this search"
@@ -465,6 +470,17 @@ function Main(props: { settings: Settings; onEditSettings: () => void }) {
             setDupesOpen(false);
             const t = lastTags();
             if (changed && t) void runSearch(t);
+          }}
+        />
+      </Show>
+
+      <Show when={importOpen()}>
+        <ImportPanel
+          api={api}
+          onClose={(imported) => {
+            setImportOpen(false);
+            const t = lastTags();
+            if (imported > 0 && t) void runSearch(t);
           }}
         />
       </Show>
