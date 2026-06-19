@@ -72,6 +72,7 @@ export function FileViewer(props: Props) {
   const [actual, setActual] = createSignal(false); // false = fit, true = 1:1
   let overlayEl!: HTMLDivElement;
   let mediaEl: HTMLDivElement | undefined;
+  let innerEl: HTMLDivElement | undefined;
   let dragging = false;
   let moved = false;
   let lastDragEndAt = 0;
@@ -87,13 +88,21 @@ export function FileViewer(props: Props) {
   };
   createEffect(on(fileId, () => { reset(); setActual(false); }, { defer: true }));
 
-  // клампинг пана: центр картинки не уходит за пределы контейнера
+  // клампинг пана: не даём увести масштабированный контент дальше края вьюпорта.
+  // граница = (размер контента·scale − вьюпорт)/2; offsetWidth дочернего <img>/<video>
+  // не зависит от CSS-трансформа, поэтому стабилен и не требует, чтобы стиль успел примениться.
   function clamp() {
     if (!mediaEl) return;
-    const w = mediaEl.clientWidth / 2;
-    const h = mediaEl.clientHeight / 2;
-    setTx((x) => Math.max(-w, Math.min(w, x)));
-    setTy((y) => Math.max(-h, Math.min(h, y)));
+    const child = innerEl?.firstElementChild as HTMLElement | null;
+    const cw = mediaEl.clientWidth;
+    const ch = mediaEl.clientHeight;
+    const s = scale();
+    const iw = (child?.offsetWidth ?? cw) * s;
+    const ih = (child?.offsetHeight ?? ch) * s;
+    const bx = Math.max(0, (iw - cw) / 2);
+    const by = Math.max(0, (ih - ch) / 2);
+    setTx((x) => Math.max(-bx, Math.min(bx, x)));
+    setTy((y) => Math.max(-by, Math.min(by, y)));
   }
 
   // префетч соседей (±1 и ±ряд)
@@ -200,6 +209,12 @@ export function FileViewer(props: Props) {
       return;
     }
     if (typing) return;
+    // Shift+D — в корзину (перехватываем до switch, чтобы обычная D осталась навигацией)
+    if (e.shiftKey && e.code === "KeyD") {
+      e.preventDefault();
+      void trashCurrent();
+      return;
+    }
     const rows = Math.max(1, props.columns);
     switch (e.code) {
       case "KeyQ": e.preventDefault(); props.onClose(); break;
@@ -278,7 +293,7 @@ export function FileViewer(props: Props) {
           <span class="spacer" />
           <button title="Archive (F)" onClick={() => void archiveCurrent()}>🗄</button>
           <button title="Back to inbox" onClick={() => void inboxCurrent()}>📥</button>
-          <button title="Trash (Del)" onClick={() => void trashCurrent()}>🗑</button>
+          <button title="Trash (Del / Shift+D)" onClick={() => void trashCurrent()}>🗑</button>
           <button title="Fit / 1:1" onClick={() => { setActual((a) => !a); reset(); }}>
             {actual() ? "Fit" : "1:1"}
           </button>
@@ -303,6 +318,7 @@ export function FileViewer(props: Props) {
                 <div class="viewer-body">
                   <div ref={mediaEl} class="media grab" onMouseDown={onDown} onWheel={onWheel} onDblClick={reset}>
                     <div
+                      ref={innerEl}
                       classList={{ "media-inner": true, actual: actual() }}
                       style={{ transform: `translate(${tx()}px, ${ty()}px) scale(${scale()})` }}
                     >
@@ -461,6 +477,17 @@ function withRating(
   c.ratings[svc] = { name: prev?.name ?? name, type: prev?.type ?? type, rating: value };
   return c;
 }
+function withNote(m: FileMetadata, name: string, text: string): FileMetadata {
+  const c = structuredClone(m);
+  if (!c.notes) c.notes = {};
+  c.notes[name] = text;
+  return c;
+}
+function withNoteRemoved(m: FileMetadata, name: string): FileMetadata {
+  const c = structuredClone(m);
+  if (c.notes) delete c.notes[name];
+  return c;
+}
 
 interface SidebarProps {
   api: HydrusApi;
@@ -559,6 +586,16 @@ function Sidebar(props: SidebarProps) {
     props.mutate((m) => withRating(m, svc, name, type, value));
     void fire(props.api.setRating([id()], svc, value));
   }
+  function setNote(name: string, text: string) {
+    const nm = name.trim();
+    if (!nm) return;
+    props.mutate((m) => withNote(m, nm, text));
+    void fire(props.api.setNotes([id()], { [nm]: text }));
+  }
+  function deleteNote(name: string) {
+    props.mutate((m) => withNoteRemoved(m, name));
+    void fire(props.api.deleteNotes([id()], [name]));
+  }
   function toggleSelect(key: string) {
     const next = new Set(selected());
     next.has(key) ? next.delete(key) : next.add(key);
@@ -653,6 +690,8 @@ function Sidebar(props: SidebarProps) {
           </For>
         </div>
       </Show>
+
+      <Notes meta={props.meta} onSet={setNote} onDelete={deleteNote} />
     </aside>
   );
 }
@@ -707,5 +746,111 @@ function Ratings(props: {
         </For>
       </div>
     </Show>
+  );
+}
+
+/**
+ * Просмотр и редактирование заметок файла (notes из include_notes). Заметки показываются
+ * read-only; «✎» открывает редактор (имя+текст) — одновременно правится одна. Переименование
+ * = удалить старую + поставить новую. Сохранение/удаление оптимистичны (см. Sidebar).
+ */
+function Notes(props: {
+  meta: FileMetadata;
+  onSet: (name: string, text: string) => void;
+  onDelete: (name: string) => void;
+}) {
+  const entries = () => Object.entries(props.meta.notes ?? {});
+  const [editing, setEditing] = createSignal<string | null>(null); // имя редактируемой заметки
+  const [adding, setAdding] = createSignal(false);
+  const [draftName, setDraftName] = createSignal("");
+  const [draft, setDraft] = createSignal("");
+
+  // сброс редактора при смене файла
+  createEffect(on(() => props.meta.file_id, () => { setEditing(null); setAdding(false); }, { defer: true }));
+
+  function startEdit(name: string, text: string) {
+    setAdding(false);
+    setEditing(name);
+    setDraftName(name);
+    setDraft(text);
+  }
+  function startNew() {
+    setEditing(null);
+    setAdding(true);
+    setDraftName("");
+    setDraft("");
+  }
+  function cancel() {
+    setEditing(null);
+    setAdding(false);
+  }
+  function save() {
+    const nm = draftName().trim();
+    if (!nm || !draft().trim()) return;
+    const orig = editing();
+    if (orig && orig !== nm) props.onDelete(orig); // переименование
+    props.onSet(nm, draft());
+    cancel();
+  }
+  // Escape отменяет, Ctrl/⌘+Enter сохраняет; stop, чтобы вьюер не словил Escape/букву как навигацию
+  function onEditorKey(e: KeyboardEvent) {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      cancel();
+    } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      e.stopPropagation();
+      save();
+    }
+  }
+
+  const editor = (isNew: boolean) => (
+    <div class="note note-edit" onKeyDown={onEditorKey}>
+      <input
+        class="note-name-input"
+        placeholder="name"
+        autofocus
+        value={draftName()}
+        onInput={(e) => setDraftName(e.currentTarget.value)}
+      />
+      <textarea
+        class="note-text-edit"
+        rows={4}
+        placeholder="text"
+        value={draft()}
+        onInput={(e) => setDraft(e.currentTarget.value)}
+      />
+      <div class="note-edit-actions">
+        <button onClick={cancel}>Cancel</button>
+        <button onClick={save}>{isNew ? "Add" : "Save"}</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div class="tag-group notes-group">
+      <div class="group-name">
+        notes <span class="group-count">{entries().length}</span>
+        <button class="note-add-btn" title="Add note" onClick={startNew}>＋</button>
+      </div>
+      <Show when={adding()}>{editor(true)}</Show>
+      <For each={entries()}>
+        {([name, text]) => (
+          <Show when={editing() === name} fallback={
+            <div class="note">
+              <div class="note-head">
+                <span class="note-title">{name}</span>
+                <span class="note-actions">
+                  <button class="note-edit-btn" title="Edit" onClick={() => startEdit(name, text)}>✎</button>
+                  <button class="tag-x" title="Delete" onClick={() => props.onDelete(name)}>×</button>
+                </span>
+              </div>
+              <div class="note-body">{text}</div>
+            </div>
+          }>
+            {editor(false)}
+          </Show>
+        )}
+      </For>
+    </div>
   );
 }

@@ -271,6 +271,7 @@ button:disabled {
 /* батч-бар мультивыбора */
 .batchbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
@@ -296,6 +297,437 @@ button:disabled {
   max-width: 220px;
 }
 
+/* ---- меню действий над выделением (дропдаун «More ▾» + контекстное по правому клику) ---- */
+.sel-more {
+  position: relative;
+}
+
+.sel-dropdown {
+  position: absolute;
+  z-index: 11;
+  top: calc(100% + 4px);
+  left: 0;
+}
+
+.sel-context {
+  position: fixed;
+  z-index: 11;
+}
+
+.sel-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+.sel-item {
+  background: none;
+  border: none;
+  color: var(--text);
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.sel-item:hover {
+  background: var(--bg);
+}
+
+.sel-item.danger:hover {
+  background: var(--danger, #5a2222);
+  color: #fff;
+}
+
+.sel-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
+}
+
+.sel-input {
+  margin: 2px 6px 6px;
+  padding: 5px 8px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+
+.sel-ratings {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 6px 6px;
+}
+
+.sel-rating {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sel-rating-name {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.sel-rating-ctl {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.sel-rating-ctl button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.sel-rating-ctl button:hover {
+  color: var(--text);
+}
+
+/* поле тега в меню/баре переиспользует общий TagInput (как «Tags for all imported») */
+.sel-taginput {
+  padding: 2px 6px 6px;
+}
+
+.sel-taginput .tag-input {
+  margin-bottom: 0;
+}
+
+.batchbar-tag {
+  flex: 1;
+  max-width: 220px;
+  padding: 0;
+}
+
+/* активная gear-кнопка (режим выделения по S) */
+.gear.on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ---- окно удаления тега из выделения (список тегов + счётчик файлов) ---- */
+.tagrm {
+  margin: auto;
+  width: min(440px, 100%);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+}
+
+.tagrm-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.tagrm-filter {
+  padding: 7px 10px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.tagrm-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.tagrm-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.tagrm-item:hover {
+  background: var(--bg);
+  outline: 1px solid var(--danger, #5a2222);
+}
+
+.tagrm-count {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.tagrm-empty {
+  padding: 8px;
+}
+
+/* ---- окно URL'ов выделения ---- */
+.urls-add {
+  display: flex;
+  gap: 6px;
+}
+
+.urls-add input {
+  flex: 1;
+  padding: 7px 10px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.urls-add button {
+  padding: 0 12px;
+}
+
+.urls-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 5px;
+}
+
+.urls-item:hover {
+  background: var(--bg);
+}
+
+.urls-link {
+  flex: 1;
+  color: var(--accent);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.urls-x {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.urls-x:hover {
+  color: var(--danger, #e0556b);
+}
+
+/* ---- подтверждение / заметка ---- */
+.confirm {
+  margin: auto;
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+}
+
+.confirm-title {
+  font-weight: 600;
+}
+
+.confirm-msg {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.confirm-actions button {
+  padding: 7px 14px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.confirm-actions button.danger {
+  background: var(--danger, #b23b3b);
+  border-color: var(--danger, #b23b3b);
+  color: #fff;
+}
+
+.note-name,
+.note-text {
+  padding: 7px 10px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  resize: vertical;
+}
+
+/* ---- окно отношений дублей ---- */
+.rel-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rel-actions button {
+  text-align: left;
+  padding: 9px 12px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.rel-actions button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.rel-actions button.danger:hover:not(:disabled) {
+  border-color: var(--danger, #b23b3b);
+}
+
+.rel-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.rel-king {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ---- заметки в сайдбаре вьюера ---- */
+.notes-group .group-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.note-add-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.note-add-btn:hover {
+  color: var(--accent);
+}
+
+.note {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+}
+
+.note-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.note-title {
+  flex: 1;
+  font-weight: 600;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.note-edit-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.note-edit-btn:hover {
+  color: var(--text);
+}
+
+.note-body {
+  margin-top: 4px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+}
+
+.note-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.note-name-input,
+.note-text-edit {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 7px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font: inherit;
+  resize: vertical;
+}
+
+.note-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.note-edit-actions button {
+  padding: 4px 10px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
 /* ---- virtual grid ---- */
 .vgrid {
   height: 100%;
@@ -314,6 +746,11 @@ button:disabled {
   width: 100%;
   height: 100%;
   cursor: pointer;
+}
+
+/* режим выделения (S): клик по тамбе выделяет, а не открывает — подсказываем курсором */
+.select-mode .thumb-wrap {
+  cursor: copy;
 }
 
 .thumb {

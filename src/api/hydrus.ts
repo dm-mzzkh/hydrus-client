@@ -105,6 +105,8 @@ export interface FileMetadata {
   /** keyed by service_key */
   ratings?: Record<string, RatingEntry>;
   known_urls?: string[];
+  /** keyed by note name (только при include_notes=true) */
+  notes?: Record<string, string>;
   time_imported?: number;
   time_modified?: number;
 }
@@ -175,6 +177,7 @@ export class HydrusApi {
   private async fetchMetadata(fileId: number): Promise<FileMetadata> {
     const url = new URL(`${this.base}/get_files/file_metadata`);
     url.searchParams.set("file_ids", JSON.stringify([fileId]));
+    url.searchParams.set("include_notes", "true"); // заметки нужны сайдбару вьюера
     const r = await fetch(url, { headers: this.headers });
     if (!r.ok) throw new Error(`file_metadata: ${r.status} ${r.statusText}`);
     const data = (await r.json()) as { metadata?: FileMetadata[] };
@@ -323,12 +326,51 @@ export class HydrusApi {
     await this.post("/add_files/unarchive_files", { file_ids: fileIds });
     fileIds.forEach((id) => this.invalidateMetadata(id));
   }
-  async deleteFiles(fileIds: number[]): Promise<void> {
-    await this.post("/add_files/delete_files", { file_ids: fileIds });
+  /**
+   * Удалить файлы. По умолчанию (без fileServiceKey) — в корзину (combined local file domains).
+   * Для физического удаления уже-в-корзине файлов передать fileServiceKey домена-хранилища
+   * («all local files»/trash). reason — опциональная причина (пишется в лог удалений Hydrus).
+   */
+  async deleteFiles(
+    fileIds: number[],
+    opts?: { fileServiceKey?: string; reason?: string },
+  ): Promise<void> {
+    const body: Record<string, unknown> = { file_ids: fileIds };
+    if (opts?.fileServiceKey) body.file_service_key = opts.fileServiceKey;
+    if (opts?.reason) body.reason = opts.reason;
+    await this.post("/add_files/delete_files", body);
     fileIds.forEach((id) => this.invalidateMetadata(id));
   }
   async undeleteFiles(fileIds: number[]): Promise<void> {
     await this.post("/add_files/undelete_files", { file_ids: fileIds });
+    fileIds.forEach((id) => this.invalidateMetadata(id));
+  }
+
+  /** Привязать/удалить known-url у файлов. Эндпоинт работает по хэшам, не file_id. */
+  async associateUrl(hashes: string[], add: string[] = [], remove: string[] = []): Promise<void> {
+    if (!add.length && !remove.length) return;
+    const body: Record<string, unknown> = { hashes };
+    if (add.length) body.urls_to_add = add;
+    if (remove.length) body.urls_to_delete = remove;
+    await this.post("/add_urls/associate_url", body);
+  }
+
+  /**
+   * Установить заметки (notes = { имя: текст }) на каждый файл. Эндпоинт set_notes
+   * принимает ТОЛЬКО один файл (file_id), поэтому батч — это пер-файловый цикл.
+   */
+  async setNotes(fileIds: number[], notes: Record<string, string>): Promise<void> {
+    if (!Object.keys(notes).length || !fileIds.length) return;
+    await Promise.all(fileIds.map((id) => this.post("/add_notes/set_notes", { file_id: id, notes })));
+    fileIds.forEach((id) => this.invalidateMetadata(id));
+  }
+
+  /** Удалить заметки по именам. delete_notes тоже только по одному файлу — цикл. */
+  async deleteNotes(fileIds: number[], noteNames: string[]): Promise<void> {
+    if (!noteNames.length || !fileIds.length) return;
+    await Promise.all(
+      fileIds.map((id) => this.post("/add_notes/delete_notes", { file_id: id, note_names: noteNames })),
+    );
     fileIds.forEach((id) => this.invalidateMetadata(id));
   }
 
@@ -379,6 +421,20 @@ export class HydrusApi {
     if (!hashes.length) return [];
     const url = new URL(`${this.base}/get_files/file_metadata`);
     url.searchParams.set("hashes", JSON.stringify(hashes));
+    const r = await fetch(url, { headers: this.headers });
+    if (!r.ok) throw new Error(`file_metadata: ${r.status} ${r.statusText}`);
+    const data = (await r.json()) as { metadata?: FileMetadata[] };
+    return data.metadata ?? [];
+  }
+
+  /**
+   * Полные метаданные пакетом по списку file_id одним запросом — для копирования
+   * хэшей/known_urls выделения. Не кешируем: разовое действие, батч может быть большим.
+   */
+  async fileMetadataMany(fileIds: number[]): Promise<FileMetadata[]> {
+    if (!fileIds.length) return [];
+    const url = new URL(`${this.base}/get_files/file_metadata`);
+    url.searchParams.set("file_ids", JSON.stringify(fileIds));
     const r = await fetch(url, { headers: this.headers });
     if (!r.ok) throw new Error(`file_metadata: ${r.status} ${r.statusText}`);
     const data = (await r.json()) as { metadata?: FileMetadata[] };

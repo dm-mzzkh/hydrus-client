@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "fflate": "^0.8.2",
     "solid-js": "^1.9.3"
   },
   "devDependencies": {

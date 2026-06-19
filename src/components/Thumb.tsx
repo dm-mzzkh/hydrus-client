@@ -13,6 +13,7 @@ export function Thumb(props: {
   id: number;
   selected?: boolean;
   onClick: (e: MouseEvent) => void;
+  onContextMenu?: (e: MouseEvent) => void;
 }) {
   const [info] = createResource(
     () => props.id,
@@ -76,6 +77,7 @@ export function Thumb(props: {
       onMouseLeave={leave}
       onMouseMove={move}
       onClick={(e) => props.onClick(e)}
+      onContextMenu={(e) => props.onContextMenu?.(e)}
     >
       <img class="thumb" src={props.api.thumbnailUrl(props.id)} loading="lazy" decoding="async" />
       <Show when={props.selected}>
