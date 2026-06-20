@@ -415,6 +415,47 @@ button:disabled {
   padding: 0;
 }
 
+/* трёхпозиционная кнопка NSFW-фильтра */
+.nsfw-btn {
+  cursor: pointer;
+  white-space: nowrap;
+}
+.nsfw-btn.sfw {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.nsfw-btn.nsfw {
+  color: var(--err-fg);
+  border-color: var(--err-fg);
+}
+
+/* поповер настройки NSFW-тегов (внутри .domain-menu) */
+.nsfw-cfg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  min-width: 240px;
+}
+.nsfw-cfg label {
+  font-size: 12px;
+  opacity: 0.8;
+}
+.nsfw-cfg input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+}
+.nsfw-cfg .ctl {
+  cursor: pointer;
+  text-align: center;
+}
+
 /* активная gear-кнопка (режим выделения по S) */
 .gear.on {
   color: var(--accent);

@@ -149,9 +149,9 @@ export class HydrusApi {
   /**
    * Возвращает ВЕСЬ список file_id под запрос (пагинации на сервере нет — листаем сами).
    * tags — массив строк-предикатов (как в клиенте): "character:samus", "-blue eyes"
-   * (негатив), "system:inbox", "character:sam*" (wildcard).
+   * (негатив), "system:inbox", "character:sam*" (wildcard). Вложенный массив = OR-группа.
    */
-  async searchFiles(tags: string[], opts: SearchOpts = {}): Promise<number[]> {
+  async searchFiles(tags: (string | string[])[], opts: SearchOpts = {}): Promise<number[]> {
     const url = new URL(`${this.base}/get_files/search_files`);
     url.searchParams.set("tags", JSON.stringify(tags));
     if (opts.sortType !== undefined) url.searchParams.set("file_sort_type", String(opts.sortType));

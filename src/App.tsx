@@ -3,6 +3,7 @@ import { zip } from "fflate";
 import { DEFAULTS, loadSettings, saveSettings, type Settings } from "./config";
 import { applyTheme, loadTheme, saveTheme, type Theme } from "./theme";
 import { muted, toggleMuted } from "./prefs";
+import { cycleNsfw, nsfwMode, nsfwPredicates, nsfwTags, setNsfwTags, type NsfwMode } from "./nsfw";
 import { pushToast } from "./toast";
 import { HydrusApi, type ServiceInfo } from "./api/hydrus";
 import { SearchBar } from "./components/SearchBar";
@@ -84,6 +85,9 @@ const SORTS: [number, string][] = [
   [18, "Last viewed"],
 ];
 
+/** Подписи трёх состояний NSFW-кнопки: среднее / без nsfw / только nsfw. */
+const NSFW_LABEL: Record<NsfwMode, string> = { all: "🔞 all", sfw: "🔞 hide", nsfw: "🔞 only" };
+
 function Main(props: { settings: Settings; onEditSettings: () => void }) {
   const api = new HydrusApi(props.settings);
   const [fileIds, setFileIds] = createSignal<number[]>([]);
@@ -120,6 +124,8 @@ function Main(props: { settings: Settings; onEditSettings: () => void }) {
   const [sortAsc, setSortAsc] = createSignal(false); // newest first
   const [domains, setDomains] = createSignal<string[]>([]); // выбранные тег-домены; [] = all
   const [domainsOpen, setDomainsOpen] = createSignal(false);
+  const [nsfwCfgOpen, setNsfwCfgOpen] = createSignal(false); // поповер настройки NSFW-тегов
+  const [nsfwDraft, setNsfwDraft] = createSignal(""); // черновик ввода NSFW-тегов
   const [fileDomain, setFileDomain] = createSignal<string | null>(null); // файловый домен; null = all my files
 
   const [services] = createResource<Record<string, ServiceInfo>>(() =>
@@ -486,15 +492,18 @@ function Main(props: { settings: Settings; onEditSettings: () => void }) {
     setBusy(true);
     setError(null);
     const opts = { sortType: sortType(), sortAsc: sortAsc(), fileServiceKey: fileDomain() ?? undefined };
+    // добавляем NSFW-фильтр к предикатам запроса (в строку поиска не попадает)
+    const extra = nsfwPredicates();
+    const q = extra.length ? [...tags, ...extra] : tags;
     try {
       const keys = domains();
       let ids: number[];
       if (keys.length <= 1 || keys.length === tagServices().length) {
         // один домен, либо все → один запрос с точной сортировкой
-        ids = await api.searchFiles(tags, { ...opts, tagServiceKey: keys.length === 1 ? keys[0] : undefined });
+        ids = await api.searchFiles(q, { ...opts, tagServiceKey: keys.length === 1 ? keys[0] : undefined });
       } else {
         // подмножество доменов → union по-доменно (API не скоупит на subset одним вызовом)
-        const lists = await Promise.all(keys.map((k) => api.searchFiles(tags, { ...opts, tagServiceKey: k })));
+        const lists = await Promise.all(keys.map((k) => api.searchFiles(q, { ...opts, tagServiceKey: k })));
         const seen = new Set<number>();
         ids = [];
         for (const l of lists) for (const id of l) if (!seen.has(id)) (seen.add(id), ids.push(id));
@@ -510,7 +519,7 @@ function Main(props: { settings: Settings; onEditSettings: () => void }) {
   // смена сортировки/скоупа → перезапуск последнего поиска (skipNextAuto гасит дубль при restore)
   let skipNextAuto = false;
   createEffect(
-    on([sortType, sortAsc, domains, fileDomain], () => {
+    on([sortType, sortAsc, domains, fileDomain, nsfwMode, nsfwTags], () => {
       if (skipNextAuto) {
         skipNextAuto = false;
         return;
@@ -637,6 +646,47 @@ function Main(props: { settings: Settings; onEditSettings: () => void }) {
             <For each={fileServices()}>{(s) => <option value={s.service_key}>{s.name}</option>}</For>
           </select>
         </Show>
+        <div class="domains">
+          <button
+            class="ctl nsfw-btn"
+            classList={{ sfw: nsfwMode() === "sfw", nsfw: nsfwMode() === "nsfw" }}
+            title="NSFW filter — click to cycle (all → hide → only), right-click to edit tags"
+            onClick={cycleNsfw}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setNsfwDraft(nsfwTags().join(", "));
+              setNsfwCfgOpen((o) => !o);
+            }}
+          >
+            {NSFW_LABEL[nsfwMode()]}
+          </button>
+          <Show when={nsfwCfgOpen()}>
+            <div class="backdrop" onClick={() => setNsfwCfgOpen(false)} />
+            <div class="domain-menu nsfw-cfg">
+              <label>NSFW tags (comma-separated)</label>
+              <input
+                value={nsfwDraft()}
+                placeholder="nsfw, rating:explicit…"
+                onInput={(e) => setNsfwDraft(e.currentTarget.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    setNsfwTags(nsfwDraft().split(","));
+                    setNsfwCfgOpen(false);
+                  }
+                }}
+              />
+              <button
+                class="ctl"
+                onClick={() => {
+                  setNsfwTags(nsfwDraft().split(","));
+                  setNsfwCfgOpen(false);
+                }}
+              >
+                Save
+              </button>
+            </div>
+          </Show>
+        </div>
         <span class="count">{fileIds().length} files</span>
         <button
           class="gear"
