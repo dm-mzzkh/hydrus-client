@@ -1078,6 +1078,17 @@ button:disabled {
   padding: 1px 0;
 }
 
+/* крестик удаления тега в редактируемом сайдбаре лайтбокса */
+.tag-x {
+  flex: none;
+  margin-left: auto;
+  padding: 0 5px;
+  color: var(--muted);
+  opacity: 0;
+}
+.tag:hover .tag-x { opacity: 1; }
+.tag-x:hover { color: var(--err-fg); }
+
 /* интерактивные рейтинги */
 .rating-ctl {
   display: flex;
@@ -1466,6 +1477,223 @@ button.danger:hover:not(:disabled) {
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
 }
 
+/* полноэкранный импорт (отдельный «таб») */
+.importview {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 18px 18px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.iv-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 16px;
+}
+
+.iv-new {
+  font-size: 12px;
+  padding: 4px 9px;
+}
+
+/* переключатель режимов gallery-dl / local */
+.iv-modes {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.iv-modes button {
+  font-size: 12px;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+}
+.iv-modes button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.iv-mgr {
+  font-size: 12px;
+  padding: 4px 9px;
+}
+
+/* менеджер импортов */
+.iv-manager {
+  flex: none;
+  max-height: 40vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.iv-jobs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.iv-job {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 6px;
+}
+.iv-job:hover { background: var(--bg); }
+.iv-job.active { outline: 1px solid var(--accent); }
+.iv-job-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 5px 7px;
+}
+.iv-job-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.iv-job-meta { font-size: 11px; }
+.iv-job-x {
+  flex: none;
+  padding: 2px 8px;
+  color: var(--err-fg);
+}
+
+/* зона drag-and-drop для локального импорта */
+.lf-drop {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+.lf-drop.over { border-color: var(--accent); background: var(--panel); }
+
+/* плитка-заглушка для не-картинок в локальном импорте */
+.lf-noimg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.iv-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  flex: 1;
+}
+
+.iv-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.iv-spacer { flex: 1; }
+
+.iv-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* контейнер VirtualList: высоту даёт flex:1 (НЕ display:flex — иначе спейсер схлопнется) */
+.iv-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* «теги для всех» в фазах listed/downloading — компактный блок-разделитель */
+.iv-tags {
+  flex: none;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.iv-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.iv-item:hover { background: var(--panel); }
+.iv-item.off { opacity: 0.45; }
+
+.iv-thumb {
+  width: 72px;
+  height: 72px;
+  flex: none;
+  object-fit: cover;
+  background: var(--thumb-bg);
+  border-radius: 4px;
+  cursor: zoom-in;
+}
+
+.iv-badge {
+  flex: none;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* уже в БД — акцент; удалён — красный; в кэше (staged) — зелёный */
+.iv-badge.indb { color: var(--accent); border-color: var(--accent); }
+.iv-badge.del { color: var(--err-fg); border-color: var(--err-fg); }
+.iv-badge.cachedb { color: #3fb950; border-color: #3fb950; }
+
+.iv-name {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.iv-src {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
 .imp-head {
   display: flex;
   align-items: center;
@@ -1542,11 +1770,6 @@ button.danger:hover:not(:disabled) {
   user-select: none;
 }
 
-.imp-adv > input {
-  width: 100%;
-  margin-top: 8px;
-}
-
 .imp-bar {
   display: flex;
   align-items: center;
@@ -1562,6 +1785,20 @@ button.danger:hover:not(:disabled) {
   flex-direction: column;
   gap: 6px;
   min-height: 0;
+}
+
+.imp-sec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.imp-force {
+  flex: none;
+  padding: 3px 8px;
+  font-size: 12px;
+  color: var(--accent);
 }
 
 .imp-results {
@@ -1584,14 +1821,21 @@ button.danger:hover:not(:disabled) {
   background: var(--bg);
 }
 
+.imp-file.off { opacity: 0.45; }
+
 .imp-thumb {
-  width: 40px;
-  height: 40px;
+  width: 64px;
+  height: 64px;
   flex: none;
   object-fit: cover;
   background: var(--thumb-bg);
   border-radius: 4px;
 }
+
+.imp-thumb.clickable { cursor: zoom-in; }
+
+/* в полноэкранном импорте список результатов тянется на всю высоту */
+.importview .imp-results { max-height: none; flex: 1; }
 
 .imp-name {
   flex: 1;
@@ -1609,6 +1853,34 @@ button.danger:hover:not(:disabled) {
 .imp-status.ok { color: #3fb950; }
 .imp-status.dim { color: var(--muted); }
 .imp-status.bad { color: var(--err-fg); }
+
+/* стрелки навигации в лайтбоксе (поверх .viewer, который position:relative) */
+.lb-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 28px;
+  line-height: 1;
+  padding: 6px 14px;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.lb-nav:hover { background: rgba(0, 0, 0, 0.65); }
+.lb-nav.prev { left: 8px; }
+.lb-nav.next { right: 8px; }
+
+/* сайдбар лайтбокса: тот же .sidebar, но не сжимается в flex-row .viewer-body */
+.lb-sidebar { flex: none; }
+
+.lb-title {
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .imp-log {
   margin: 8px 0 0;

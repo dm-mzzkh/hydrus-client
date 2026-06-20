@@ -11,7 +11,7 @@ import { Thumb } from "./components/Thumb";
 import { VirtualGrid } from "./components/VirtualGrid";
 import { FileViewer } from "./components/FileViewer";
 import { Duplicates } from "./components/Duplicates";
-import { ImportPanel } from "./components/ImportPanel";
+import { ImportView } from "./components/ImportView";
 import { SelectionBar, ContextMenu, type SelectionActions } from "./components/SelectionMenu";
 import { RemoveTagsModal } from "./components/RemoveTagsModal";
 import { UrlsModal } from "./components/UrlsModal";
@@ -553,6 +553,19 @@ function Main(props: { settings: Settings; onEditSettings: () => void }) {
   });
 
   return (
+    <Show
+      when={!importOpen()}
+      fallback={
+        <ImportView
+          api={api}
+          onBack={(imported) => {
+            setImportOpen(false);
+            const t = lastTags();
+            if (imported > 0 && t) void runSearch(t);
+          }}
+        />
+      }
+    >
     <div class="app" classList={{ "select-mode": selectMode() }}>
       <header>
         <SearchBar
@@ -778,17 +791,8 @@ function Main(props: { settings: Settings; onEditSettings: () => void }) {
         />
       </Show>
 
-      <Show when={importOpen()}>
-        <ImportPanel
-          api={api}
-          onClose={(imported) => {
-            setImportOpen(false);
-            const t = lastTags();
-            if (imported > 0 && t) void runSearch(t);
-          }}
-        />
-      </Show>
     </div>
+    </Show>
   );
 }
 

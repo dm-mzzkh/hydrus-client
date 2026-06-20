@@ -346,6 +346,42 @@ export class HydrusApi {
     fileIds.forEach((id) => this.invalidateMetadata(id));
   }
 
+  /**
+   * Импорт файла байтами (для локального импорта прямо из браузера — File/Blob).
+   * status: 1 imported, 2 already in db, 3 previously deleted, 4 failed, 7 vetoed.
+   * Нужны права Import Files у ключа.
+   */
+  async addFileBytes(bytes: Blob): Promise<{ status: number; hash?: string; note?: string }> {
+    const r = await fetch(`${this.base}/add_files/add_file`, {
+      method: "POST",
+      headers: { ...this.headers, "Content-Type": "application/octet-stream" },
+      body: bytes,
+    });
+    if (!r.ok) throw new Error(`add_file: ${r.status} ${r.statusText}`);
+    return (await r.json()) as { status: number; hash?: string; note?: string };
+  }
+
+  /** Добавить теги по хэшам (у свежеимпортированного файла есть hash, а не file_id). */
+  async addTagsByHash(hashes: string[], serviceKey: string, add: string[]): Promise<void> {
+    if (!hashes.length || !add.length) return;
+    await this.post("/add_tags/add_tags", {
+      hashes,
+      service_keys_to_actions_to_tags: { [serviceKey]: { "0": add } },
+    });
+  }
+
+  /** Стереть запись об удалении — чтобы повторно импортнуть previously-deleted файл (status 3). */
+  async clearFileDeletionRecord(hashes: string[]): Promise<void> {
+    if (!hashes.length) return;
+    await this.post("/add_files/clear_file_deletion_record", { hashes });
+  }
+
+  /** Ключ первого локального тег-сервиса (type 5), либо undefined. */
+  async localTagServiceKey(): Promise<string | undefined> {
+    const svcs = await this.services();
+    return Object.values(svcs).find((s) => s.type === 5)?.service_key;
+  }
+
   /** Привязать/удалить known-url у файлов. Эндпоинт работает по хэшам, не file_id. */
   async associateUrl(hashes: string[], add: string[] = [], remove: string[] = []): Promise<void> {
     if (!add.length && !remove.length) return;

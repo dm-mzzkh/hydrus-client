@@ -14,6 +14,7 @@ import {
 import { HydrusApi, isFlashMime, type FileMetadata, type ServiceInfo } from "../api/hydrus";
 import { muted } from "../prefs";
 import { pushToast } from "../toast";
+import { createZoomPan } from "../zoom";
 import { TagInput } from "./TagInput";
 import { TagLabel } from "./TagLabel";
 
@@ -65,45 +66,11 @@ export function FileViewer(props: Props) {
   // интерактивные типы (видео-контролы, Flash-игры) — мышь отдаём им, не паним
   const isInteractive = () => isVid() || isFlash();
 
-  // зум / пан / режим масштаба
-  const [scale, setScale] = createSignal(1);
-  const [tx, setTx] = createSignal(0);
-  const [ty, setTy] = createSignal(0);
-  const [actual, setActual] = createSignal(false); // false = fit, true = 1:1
+  // зум / пан / режим масштаба — общий хук (тот же, что у лайтбокса импортёра)
+  const zp = createZoomPan();
+  const { actual, setActual, reset, zoomAt } = zp;
   let overlayEl!: HTMLDivElement;
-  let mediaEl: HTMLDivElement | undefined;
-  let innerEl: HTMLDivElement | undefined;
-  let dragging = false;
-  let moved = false;
-  let lastDragEndAt = 0;
-  let sx = 0;
-  let sy = 0;
-  let ox = 0;
-  let oy = 0;
-
-  const reset = () => {
-    setScale(1);
-    setTx(0);
-    setTy(0);
-  };
   createEffect(on(fileId, () => { reset(); setActual(false); }, { defer: true }));
-
-  // клампинг пана: не даём увести масштабированный контент дальше края вьюпорта.
-  // граница = (размер контента·scale − вьюпорт)/2; offsetWidth дочернего <img>/<video>
-  // не зависит от CSS-трансформа, поэтому стабилен и не требует, чтобы стиль успел примениться.
-  function clamp() {
-    if (!mediaEl) return;
-    const child = innerEl?.firstElementChild as HTMLElement | null;
-    const cw = mediaEl.clientWidth;
-    const ch = mediaEl.clientHeight;
-    const s = scale();
-    const iw = (child?.offsetWidth ?? cw) * s;
-    const ih = (child?.offsetHeight ?? ch) * s;
-    const bx = Math.max(0, (iw - cw) / 2);
-    const by = Math.max(0, (ih - ch) / 2);
-    setTx((x) => Math.max(-bx, Math.min(bx, x)));
-    setTy((y) => Math.max(-by, Math.min(by, y)));
-  }
 
   // префетч соседей (±1 и ±ряд)
   createEffect(
@@ -127,17 +94,6 @@ export function FileViewer(props: Props) {
       },
     ),
   );
-
-  function zoomAt(factor: number, cx = 0, cy = 0) {
-    const s = scale();
-    const s2 = Math.min(10, Math.max(0.15, s * factor));
-    if (s2 === s) return;
-    const r = s2 / s;
-    setTx(cx - r * (cx - tx()));
-    setTy(cy - r * (cy - ty()));
-    setScale(s2);
-    clamp();
-  }
 
   const nav = (delta: number) => {
     const next = Math.min(props.fileIds.length - 1, Math.max(0, props.index + delta));
@@ -172,7 +128,7 @@ export function FileViewer(props: Props) {
 
   function toggleFullscreen() {
     if (document.fullscreenElement) document.exitFullscreen();
-    else mediaEl?.requestFullscreen?.();
+    else zp.getMedia()?.requestFullscreen?.();
   }
 
   async function download(m: FileMetadata) {
@@ -232,56 +188,14 @@ export function FileViewer(props: Props) {
     }
   }
 
-  function onMove(e: MouseEvent) {
-    if (!dragging) return;
-    moved = true;
-    setTx(ox + (e.clientX - sx));
-    setTy(oy + (e.clientY - sy));
-    clamp();
-  }
-  function onUp() {
-    if (moved) lastDragEndAt = performance.now();
-    dragging = false;
-  }
-
   onMount(() => {
     overlayEl.focus();
     window.addEventListener("keydown", onKey);
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    onCleanup(() => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    });
+    onCleanup(() => window.removeEventListener("keydown", onKey));
   });
 
-  function onDown(e: MouseEvent) {
-    if (e.button !== 0) return;
-    dragging = true;
-    moved = false;
-    sx = e.clientX;
-    sy = e.clientY;
-    ox = tx();
-    oy = ty();
-    if (!isInteractive()) e.preventDefault();
-  }
-  function onWheel(e: WheelEvent) {
-    e.preventDefault();
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    // нормализуем дельту к пикселям, затем экспоненциальный шаг — плавно на тачпаде
-    let dy = e.deltaY;
-    if (e.deltaMode === 1) dy *= 16; // строки
-    else if (e.deltaMode === 2) dy *= rect.height; // страницы
-    const factor = Math.exp(-dy * 0.0018);
-    zoomAt(
-      factor,
-      e.clientX - (rect.left + rect.width / 2),
-      e.clientY - (rect.top + rect.height / 2),
-    );
-  }
   function onOverlayClick() {
-    if (performance.now() - lastDragEndAt < 250) return;
+    if (zp.justDragged()) return;
     props.onClose();
   }
 
@@ -316,11 +230,11 @@ export function FileViewer(props: Props) {
             <Match when={meta()}>
               {(m) => (
                 <div class="viewer-body">
-                  <div ref={mediaEl} class="media grab" onMouseDown={onDown} onWheel={onWheel} onDblClick={reset}>
+                  <div ref={zp.mediaRef} class="media grab" onMouseDown={(e) => zp.onDown(e, !isInteractive())} onWheel={zp.onWheel} onDblClick={reset}>
                     <div
-                      ref={innerEl}
+                      ref={zp.innerRef}
                       classList={{ "media-inner": true, actual: actual() }}
-                      style={{ transform: `translate(${tx()}px, ${ty()}px) scale(${scale()})` }}
+                      style={{ transform: zp.transform() }}
                     >
                       <Switch fallback={<ImageView api={props.api} meta={m()} />}>
                         <Match when={(m().mime ?? "").startsWith("video")}>
