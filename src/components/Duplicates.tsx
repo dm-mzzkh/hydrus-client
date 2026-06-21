@@ -67,9 +67,9 @@ export function Duplicates(props: Props) {
 
   /** Применить решения (фон), пометить changed, дать undo на удалённые файлы. */
   async function applyDecision(rels: RelationshipSet[], undeleteIds?: number[]) {
-    changed = true;
     try {
       await props.api.setFileRelationships(rels);
+      changed = true; // только после успеха — иначе закрытие зря перезапустит поиск
       const n = undeleteIds?.length ?? 0;
       if (n) {
         pushToast(`Trashed ${n} worse duplicate${n > 1 ? "s" : ""}`, {

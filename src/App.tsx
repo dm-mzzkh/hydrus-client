@@ -696,7 +696,7 @@ function Main(props: { settings: Settings; onEditSettings: () => void }) {
         >
           ▣
         </button>
-        <button class="gear" title="Import via gallery-dl" onClick={() => setImportOpen(true)}>
+        <button class="gear" title="Import files" onClick={() => setImportOpen(true)}>
           ＋
         </button>
         <button

@@ -342,7 +342,7 @@ button:disabled {
 }
 
 .sel-item.danger:hover {
-  background: var(--danger, #5a2222);
+  background: #5a2222;
   color: #fff;
 }
 
@@ -350,15 +350,6 @@ button:disabled {
   height: 1px;
   margin: 4px 6px;
   background: var(--border);
-}
-
-.sel-input {
-  margin: 2px 6px 6px;
-  padding: 5px 8px;
-  background: var(--bg);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 5px;
 }
 
 .sel-ratings {
@@ -513,7 +504,7 @@ button:disabled {
 
 .tagrm-item:hover {
   background: var(--bg);
-  outline: 1px solid var(--danger, #5a2222);
+  outline: 1px solid #5a2222;
 }
 
 .tagrm-count {
@@ -574,7 +565,7 @@ button:disabled {
 }
 
 .urls-x:hover {
-  color: var(--danger, #e0556b);
+  color: #e0556b;
 }
 
 /* ---- подтверждение / заметка ---- */
@@ -616,8 +607,8 @@ button:disabled {
 }
 
 .confirm-actions button.danger {
-  background: var(--danger, #b23b3b);
-  border-color: var(--danger, #b23b3b);
+  background: #b23b3b;
+  border-color: #b23b3b;
   color: #fff;
 }
 
@@ -654,7 +645,7 @@ button:disabled {
 }
 
 .rel-actions button.danger:hover:not(:disabled) {
-  border-color: var(--danger, #b23b3b);
+  border-color: #b23b3b;
 }
 
 .rel-actions button:disabled {
@@ -1016,12 +1007,6 @@ button:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.rating-val {
-  flex: none;
-  color: var(--star);
-  letter-spacing: 1px;
 }
 
 /* ---- группы тегов по доменам ---- */
@@ -1504,20 +1489,6 @@ button.danger:hover:not(:disabled) {
 }
 
 /* ---- gallery-dl import ---- */
-.importer {
-  margin: auto;
-  width: min(620px, 100%);
-  max-height: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 18px 20px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
-}
-
 /* полноэкранный импорт (отдельный «таб») */
 .importview {
   position: fixed;
@@ -1735,16 +1706,6 @@ button.danger:hover:not(:disabled) {
   font-size: 12px;
 }
 
-.imp-head {
-  display: flex;
-  align-items: center;
-  font-size: 16px;
-}
-
-.imp-head .close {
-  margin-left: auto;
-}
-
 .imp-field {
   display: flex;
   flex-direction: column;
@@ -1821,33 +1782,11 @@ button.danger:hover:not(:disabled) {
   min-width: 110px;
 }
 
-.imp-section {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-height: 0;
-}
-
-.imp-sec-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
 .imp-force {
   flex: none;
   padding: 3px 8px;
   font-size: 12px;
   color: var(--accent);
-}
-
-.imp-results {
-  overflow-y: auto;
-  max-height: 34vh;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
 }
 
 .imp-file {
@@ -1874,9 +1813,6 @@ button.danger:hover:not(:disabled) {
 }
 
 .imp-thumb.clickable { cursor: zoom-in; }
-
-/* в полноэкранном импорте список результатов тянется на всю высоту */
-.importview .imp-results { max-height: none; flex: 1; }
 
 .imp-name {
   flex: 1;

@@ -29,6 +29,7 @@ export function VirtualGrid(props: Props) {
       setSize({ w: container.clientWidth, h: container.clientHeight }),
     );
     ro.observe(container);
+    setSize({ w: container.clientWidth, h: container.clientHeight }); // первый кадр без вспышки в 1 колонку
     onCleanup(() => ro.disconnect());
   });
 

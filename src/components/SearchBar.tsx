@@ -179,7 +179,7 @@ export function SearchBar(props: Props) {
       <form onSubmit={submit}>
         <input
           ref={inputEl}
-          placeholder="" //should be clean
+          placeholder="search tags…"
           value={props.query}
           onInput={onInput}
           onKeyDown={onKeyDown}

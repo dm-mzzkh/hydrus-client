@@ -75,6 +75,9 @@ const LS_KEY = "gdl-job";
 const ITEM_ROW = 84;   // высота строки списка (миниатюра 72 + отступы)
 const STAGED_ROW = 76; // высота строки стейджинга (миниатюра 64 + отступы)
 const cachedUrl = (key: string) => `/__gallerydl/cached?key=${encodeURIComponent(key)}`;
+// gallery-dl работает только через dev-сервер (Vite-плагин /__gallerydl). В статической
+// сборке этих эндпоинтов нет, поэтому показываем лишь локальный импорт.
+const DEV = import.meta.env.DEV;
 
 export function ImportView(props: Props) {
   const [urls, setUrls] = createSignal("");
@@ -85,7 +88,7 @@ export function ImportView(props: Props) {
   const [addAnyway, setAddAnyway] = createSignal(false);
   const [busy, setBusy] = createSignal(false);
   const [cacheMsg, setCacheMsg] = createSignal("");
-  const [mode, setMode] = createSignal<"gallery" | "local">("gallery");
+  const [mode, setMode] = createSignal<"gallery" | "local">(DEV ? "gallery" : "local");
   const [managerOpen, setManagerOpen] = createSignal(false);
   const [jobsList, setJobsList] = createSignal<JobSummary[]>([]);
   const [lb, setLb] = createSignal<{ urls: string[]; metas?: LbMeta[]; kinds?: MediaKind[]; keys?: string[]; index: number } | null>(null);
@@ -137,6 +140,7 @@ export function ImportView(props: Props) {
   function stopPolling() { if (pollTimer) { clearTimeout(pollTimer); pollTimer = undefined; } }
 
   onMount(async () => {
+    if (!DEV) return; // без dev-сервера джобов gallery-dl нет
     void fetchJobs();
     const saved = localStorage.getItem(LS_KEY);
     if (saved) { jobId = saved; const ok = await refresh(); if (ok && active()) startPolling(); }
@@ -253,7 +257,7 @@ export function ImportView(props: Props) {
   function newImport() {
     stopPolling(); localStorage.removeItem(LS_KEY); jobId = ""; lastItemsRev = -1; selFinal = false; selTouched = false;
     setSnap(null); setSelected(new Set<number>());
-    setMode("gallery"); setManagerOpen(false);
+    setMode(DEV ? "gallery" : "local"); setManagerOpen(false);
   }
 
   // ---- менеджер импортов: список всех джобов на сервере ----
@@ -309,12 +313,16 @@ export function ImportView(props: Props) {
       <div class="iv-head">
         <button class="iv-back" onClick={back}>← back</button>
         <strong>Import</strong>
-        <div class="iv-modes">
-          <button classList={{ active: mode() === "gallery" }} onClick={() => setMode("gallery")}>gallery-dl</button>
-          <button classList={{ active: mode() === "local" }} onClick={() => setMode("local")}>local files</button>
-        </div>
+        <Show when={DEV}>
+          <div class="iv-modes">
+            <button classList={{ active: mode() === "gallery" }} onClick={() => setMode("gallery")}>gallery-dl</button>
+            <button classList={{ active: mode() === "local" }} onClick={() => setMode("local")}>local files</button>
+          </div>
+        </Show>
         <span class="iv-spacer" />
-        <button class="iv-mgr" onClick={toggleManager}>imports{jobsList().length ? ` (${jobsList().length})` : ""} ▾</button>
+        <Show when={DEV}>
+          <button class="iv-mgr" onClick={toggleManager}>imports{jobsList().length ? ` (${jobsList().length})` : ""} ▾</button>
+        </Show>
         <Show when={mode() === "gallery" && snap()}>
           <button class="iv-new" onClick={newImport}>new import</button>
         </Show>

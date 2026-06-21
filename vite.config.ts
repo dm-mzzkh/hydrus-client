@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { copyFile, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, extname, join } from "node:path";
+import { basename, extname, join, sep } from "node:path";
 
 /**
  * Dev-only мост к gallery-dl. Браузер не может запускать локальные программы, поэтому раннер
@@ -548,6 +548,7 @@ function galleryDlPlugin(env: Record<string, string>): Plugin {
 
   return {
     name: "gallery-dl-import",
+    apply: "serve", // только dev-сервер: в продакшн-сборке плагин не участвует
     configureServer(server) {
       server.middlewares.use("/__gallerydl", async (req, res) => {
         const full = req.url ?? "";
@@ -578,7 +579,8 @@ function galleryDlPlugin(env: Record<string, string>): Plugin {
           const m = manifest[query.get("key") || ""];
           if (!m) { res.statusCode = 404; res.end(); return; }
           const file = join(stagingDir, m.media);
-          if (!file.startsWith(stagingDir)) { res.statusCode = 403; res.end(); return; } // защита от traversal
+          // защита от traversal: проверяем границу по разделителю, а не префикс строки
+          if (file !== stagingDir && !file.startsWith(stagingDir + sep)) { res.statusCode = 403; res.end(); return; }
           res.setHeader("Content-Type", CT[extname(file).toLowerCase()] || "application/octet-stream");
           // контент для key неизменен (key кодирует сам файл) → можно кэшировать в браузере
           res.setHeader("Cache-Control", "private, max-age=300");
